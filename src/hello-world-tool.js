@@ -1,8 +1,17 @@
 import csTools from "cornerstone-tools";
 const drawEllipse = csTools.importInternal("drawing/drawEllipse");
 const getNewContext = csTools.importInternal("drawing/getNewContext");
-const getPixelSpacing= csTools.importInternal("util/getPixelSpacing");
 const BaseTool = csTools.importInternal("base/BaseTool");
+
+function mean_thresh(data) {
+  let threshold = 0;
+  let sum = 0;
+  for(let i = 0; i<data.length; i++){
+    sum = sum + data[i];
+  }
+  threshold = sum/data.length;
+  return threshold;
+}
 
 export default class HelloWorldMouseTool extends BaseTool {
   constructor(name = "HelloWorldMouse") {
@@ -12,20 +21,22 @@ export default class HelloWorldMouseTool extends BaseTool {
     });
   }
 
+ 
   preMouseDownCallback(evt) {
-    console.log("Hello");
+    console.log("Threshold:");
     const eventData = evt.detail;
     const { image, element } = eventData;
     //const context = getNewContext(eventData.canvasContext.canvas);
-    const { rowPixelSpacing, colPixelSpacing } = getPixelSpacing(image);
-    console.log(rowPixelSpacing);
+    const PixelData = image.getPixelData();
+    console.log(mean_thresh(PixelData));
   }
 
+
   activeCallback(element) {
-    console.log(`Hello world plugin activated`);
+    console.log(`plugin activated`);
   }
 
   disabledCallback(element) {
-    console.log(`Hello world plugin deactivated`);
+    console.log(`plugin deactivated`);
   }
 }
