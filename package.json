@@ -1,0 +1,27 @@
+{
+  "name": "cornerstone-tool-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/hello-world-tool.js",
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "rollup -c",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "cornerstone-tools": "^4.8.1",
+    "prettier": "^1.19.1",
+    "rimraf": "^3.0.0",
+    "rollup": "^1.27.5",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-json": "^4.0.0",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-sourcemaps": "^0.4.2"
+  },
+  "peerDependencies": {
+    "cornerstone-tools": "^4.8.1"
+  }
+}
