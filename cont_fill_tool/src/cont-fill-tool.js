@@ -89,33 +89,8 @@ export default class CountourFillTool extends BaseBrushTool {
     const image = evt.detail.image;
     const imagePixelData = image.getPixelData();
     const imageWidth = image.width;
-    const imageHeight = image.height; //is not grayscale
+    const imageHeight = image.height; 
     
-    //TODO
-    
-
-
-    //TODO graycale (np.maximum(image_2d, 0) / image_2d.max()) * 255.0
-    //scale image (пока int)
-/*
-    function scale_image(imageData){
-      let image_max = getMaxOfArray(imageData);
-      let image_scaled = new Int16Array();
-      for (let i = 0; i<imageData.length;i++){
-        let k = imageData[i]/image_max;
-        //console.log(k*255);//
-        image_scaled[i] = Math.round(k*255);
-      }
-      return image_scaled;
-    }
-*/
-    //console.log(imagePixelData);
-    //console.log(getMaxOfArray(imagePixelData));
-    //console.log(imagePixelData[30674]);
-    //let k = imagePixelData[30674]/getMaxOfArray(imagePixelData);
-    //console.log(k*255);
-   //const image_scale = scale_image(imagePixelData);
-
     //cut fragment for count threshold
     let xS = this.startCoords.x.valueOf();
     let yS = this.startCoords.y.valueOf();
@@ -124,21 +99,13 @@ export default class CountourFillTool extends BaseBrushTool {
     const highlFragment = cutHilghFragm(xS, yS, xE, yE, imagePixelData);
 
     //count threshold
-    const mean_threshold = mean_thresh(imagePixelData); //try change function for threshold
+    const mean_threshold = mean_thresh(highlFragment); 
     console.log(mean_threshold);
-    const o_thresh = otsu_threshold(imagePixelData);
+    const o_thresh = otsu_threshold(highlFragment);
     console.log(o_thresh);
 
-
-   
-    //TODO get fragment(or contour)
-    
-
-    //TODO prepare data for search
-    //const preparedData = prepareDataForSearch(imagePixelData, imageWidth, imageHeight);
-
     //search contours
-    const arrayPolig = searchCont(imagePixelData, o_thresh, imageWidth, imageHeight);//try const thresh
+    const arrayPolig = searchCont(imagePixelData, o_thresh, imageWidth, imageHeight);
 
    this.draw(evt, arrayPolig);
   };
@@ -237,19 +204,7 @@ function cutHilghFragm(xS, yS, xE, yE, imagePixelData) {
   return imagePixelData.slice(beginCut, endCut);
 }
 
-/*
-//wrong
-function prepareDataForSearch(fragmData, fragmWidth, fragmHeight) {
-  const values = new Float64Array(fragmWidth * fragmHeight);
- // StackBlur.(fragmData,3);//
-  for (let j = 0, k = 0; j < fragmHeight; ++j) {
-    for (let i = 0; i < fragmWidth; ++i, ++k) {
-      values[k] = fragmData[k]; //check
-    }
-  }
-  return values;
-}
-*/
+
 function otsu_threshold(highlData) {
 
   let n =getMaxOfArray(highlData);
