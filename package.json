@@ -1,0 +1,11 @@
+{
+  "name": "ohif-contour-tool",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/PencilML/ohif-contour-tool.git",
+  "license": "MIT",
+  "dependencies": {
+    "cornerstone-core": "^2.3.0",
+    "cornerstone-tools": "^4.9.0"
+  }
+}
