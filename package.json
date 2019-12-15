@@ -1,0 +1,30 @@
+{
+  "name": "ohif-contour-tool",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "rollup -c",
+    "start": "rollup -c -w"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "d3": "^5.14.2"
+  },
+  "devDependencies": {
+    "prettier": "^1.19.1",
+    "rimraf": "^3.0.0",
+    "rollup": "^1.27.5",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-json": "^4.0.0",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-sourcemaps": "^0.4.2"
+  },
+  "peerDependencies": {
+    "cornerstone-tools": "^4.8.1",
+    "cornerstone-core": "^2.3.0"
+  }
+}
