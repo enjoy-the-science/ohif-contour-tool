@@ -2,7 +2,7 @@
   "name": "cornerstone-tool-example",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/hello-world-tool.js",
+  "main": "dist/contour-brush.js",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "rollup -c",
