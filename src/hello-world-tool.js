@@ -13,7 +13,7 @@ export default class HelloWorldMouseTool extends BaseBrushTool {
       configuration: {},
     });
     this.touchDragCallback = this._paint.bind(this);
-    window.addEventListener('keydown', this.handleWheel.bind(this));
+    window.addEventListener('keydown', this.handleKeys.bind(this));
     this.shouldErase = false;
   }
 
@@ -45,7 +45,7 @@ export default class HelloWorldMouseTool extends BaseBrushTool {
     window.cornerstone.updateImage(evt.detail.element);
   }
 
-  handleWheel(event) {
+  handleKeys(event) {
     let { configuration, setters } = segmentationModule;
     if (event.ctrlKey) {
       configuration.radius += configuration.radius > 50 ? 0 : 1;
