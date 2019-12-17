@@ -96,31 +96,32 @@ let xS = this.startCoords.x.valueOf();
 let yS = this.startCoords.y.valueOf();
 let xStart = Math.round(xS);
 let yStart = Math.round(yS);
-console.log(xStart*yStart);
 
+//get dinamic Xend, Yend for count parameters
+
+//get 2D-array
 let Array2d = [];
+
 for (let i = 0; i < image.height; i++) {
   Array2d.push(
     Array.from(imagePixelData.slice(i * imageWidth, (i + 1) * imageWidth))
   );
 }
 
-var equals_with_tol = function (a, b) {
-  return Math.abs(a-b)<=50;
-};
+//get tolerance, function count_tolerance(?)
+const tolerance = 100;
 
-//const tolerance = 50;
-
+//Flood fill, get array of points
 let result = floodFill({
 getter: function(x,y){return Array2d[y][x];},
 seed: [xStart, yStart],
-equals:equals_with_tol,
+equals:function (a, b) {
+  return Math.abs(a-b)<=tolerance;
+},
 diagonals: true
 })
 
 const arrayPoints = result.flooded;
-
-console.log(arrayPoints);//
 
 this.draw(evt, arrayPoints);
 };
