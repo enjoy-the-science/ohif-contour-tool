@@ -97,7 +97,7 @@ let yS = this.startCoords.y.valueOf();
 let xStart = Math.round(xS);
 let yStart = Math.round(yS);
 
-//get dinamic Xend, Yend for count parameters
+
 
 //get 2D-array
 let Array2d = [];
@@ -108,8 +108,25 @@ for (let i = 0; i < image.height; i++) {
   );
 }
 
-//get tolerance, function count_tolerance(?)
-const tolerance = 100;
+function get_max(data){
+  let max_val = 0
+  for(let i = 0; i < data.length; i++){
+    if (data[i]>max_val){
+      max_val=data[i];
+    }
+  }
+  return max_val;
+}
+
+function count_tolerance(deltaY,max_val){
+    return max_val * Math.tanh(0.15*(deltaY/10));
+}
+
+//Math.abs(startY-endY)
+const deltaY = 10;
+//get tolerance, function count_tolerance(deltaY...) in progress
+const tolerance = count_tolerance(deltaY, get_max(imagePixelData));
+console.log(tolerance);
 
 //Flood fill, get array of points
 let result = floodFill({
@@ -124,6 +141,7 @@ diagonals: true
 const arrayPoints = result.flooded;
 
 this.draw(evt, arrayPoints);
+
 };
 
 draw(evt, points){
