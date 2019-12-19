@@ -70,36 +70,50 @@ export default class ActiveContourTool extends BaseBrushTool {
 
       // nextRemove = copy.map(a => [a[0][0] + 10, a[0][1] - 20]);
       const pixelsToDraw = copy.map(a => [a[0][0], a[0][1]]);
-      const cornerstoneCanvas = document.getElementsByClassName(
+      const canvas = document.getElementsByClassName(
         'cornerstone-canvas'
       )[0];
-      const ctx = cornerstoneCanvas.getContext('2d');
-      const imageData = ctx.getImageData(
-        0,
-        0,
-        cornerstoneCanvas.width,
-        cornerstoneCanvas.height
-      ).data;
-      // console.log(imageData)
-      // throw new Error()
 
-      const acm = new ACM({
-        img: {
-          width: cornerstoneCanvas.width,
-          height: cornerstoneCanvas.height,
-        },
-        imageData,
-        margin: 50,
-        maxIteration: 230,
-        minlen: Math.pow(0.1, 2),
-        maxlen: Math.pow(5, 2),
-        startX: 0,
-        startY: 0,
-        threshold: 0.9,
+
+      const canvasContext = canvas.getContext('2d')
+      const maxIteration = 1000
+
+      var acm = new ACM({
+          maxIteration,
+          minlen: Math.pow( .1,2 ),
+          maxlen: Math.pow( 6,2 ),
+          threshold: .1,
+
+          // {data: [], width, height}
+          imageData: canvasContext.getImageData(0, 0, canvas.width, canvas.height),
+          // Но width и height так же прокидываются в imageData
+          width: canvas.width,
+          height: canvas.height,
+          render(snake, i, iLength, finished) {
+              canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+              // canvasContext.drawImage(image, 0, 0);
+              canvasContext.lineWidth = 1;
+              canvasContext.strokeStyle = "#fff";
+              canvasContext.fillStyle = Boolean(finished) ? "rgba( 255,0,0, .5 )" : "rgba(255,255,255,.5 )";
+              canvasContext.beginPath();
+
+              snake.forEach(function (p) {
+                  canvasContext.lineTo(p[0], p[1]);
+              });
+
+              canvasContext.closePath();
+              canvasContext.stroke();
+              canvasContext.fill();
+
+              canvasContext.fillStyle = "#FFF";
+              canvasContext.font = "10px Verdana";
+              canvasContext.fillText("iteration: " + i + " / " + maxIteration + ' length: ' + iLength.toFixed(2), 10, 10)
+          }
       });
 
-      acm.setSnakeDots(copy.map(a => [a[0][0], a[0][1]]));
+      // acm.setSnakeDots(copy.map(a => [a[0][0], a[0][1]]));
       acm.compute();
+
       drawBrushPixels(
         pixelsToDraw,
         cache.pixelData,
