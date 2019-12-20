@@ -41,7 +41,7 @@ export default class ActiveContourTool extends BaseBrushTool {
       )[0];
 
       const canvasContext = canvas.getContext('2d')
-      const maxIteration = 1000
+      const maxIteration = 500
 
       const originalPicture = new Image()
       originalPicture.src = canvas.toDataURL()
@@ -58,6 +58,12 @@ export default class ActiveContourTool extends BaseBrushTool {
           dots: [...pixelsToDraw],
           
           render(snake, i, iLength, finished) {
+            if (finished) {
+              snake.forEach(([x,y])=>{console.log(`${x} - ${y}`)})
+              console.log(snake.length, 'points in selection')
+            }
+
+
             canvasContext.clearRect(0, 0, canvas.width, canvas.height);
             canvasContext.drawImage(originalPicture, 0, 0);
             canvasContext.lineWidth = 1;
