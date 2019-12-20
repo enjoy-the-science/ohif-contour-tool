@@ -50,13 +50,13 @@ export default class ActiveContourTool extends BaseBrushTool {
       this.pixelsArray = [];
 
       // Do some cleaning
-      drawBrushPixels(
-        copy.map(a => [a[0][0], a[0][1]]),
-        cache.pixelData,
-        cache.activeSegmentIndex,
-        cache.columns,
-        true
-      );
+      // drawBrushPixels(
+      //   copy.map(a => [a[0][0], a[0][1]]),
+      //   cache.pixelData,
+      //   cache.activeSegmentIndex,
+      //   cache.columns,
+      //   true
+      // );
 
       // if (nextRemove) {
       //   drawBrushPixels(
@@ -78,24 +78,57 @@ export default class ActiveContourTool extends BaseBrushTool {
       const canvasContext = canvas.getContext('2d')
       const maxIteration = 1000
 
+      console.log('pixelstodraw', pixelsToDraw)
+
+      const originalPicture = new Image()
+      originalPicture.src = canvas.toDataURL()
+
+      let prev = null
       var acm = new ACM({
           maxIteration,
           minlen: Math.pow( .1,2 ),
           maxlen: Math.pow( 6,2 ),
-          threshold: .1,
+          threshold: .40,
 
           // {data: [], width, height}
           imageData: canvasContext.getImageData(0, 0, canvas.width, canvas.height),
           // Но width и height так же прокидываются в imageData
           width: canvas.width,
           height: canvas.height,
+          dots: [...pixelsToDraw],
+          
           render(snake, i, iLength, finished) {
+            const USE_SNAKE_FROM_OUT_CONTOUR = false
+
+            if (USE_SNAKE_FROM_OUT_CONTOUR) {
+              if (prev) {
+                // console.log('cleaning...', prev.map(p => [parseInt(p[0]), parseInt(p[1])]))
+                drawBrushPixels(
+                  prev,
+                  cache.pixelData,
+                  cache.activeSegmentIndex,
+                  cache.columns, true
+                );
+              }
+              prev = snake.map(p => [parseInt(p[0]), parseInt(p[1])])
+
+
+              
+              drawBrushPixels(
+                prev,
+                cache.pixelData,
+                cache.activeSegmentIndex,
+                cache.columns
+              );
+              csCore.updateImage(cache.evt.detail.element)
+            } else {
               canvasContext.clearRect(0, 0, canvas.width, canvas.height);
-              // canvasContext.drawImage(image, 0, 0);
+              canvasContext.drawImage(originalPicture, 0, 0);
               canvasContext.lineWidth = 1;
               canvasContext.strokeStyle = "#fff";
               canvasContext.fillStyle = Boolean(finished) ? "rgba( 255,0,0, .5 )" : "rgba(255,255,255,.5 )";
               canvasContext.beginPath();
+
 
               snake.forEach(function (p) {
                   canvasContext.lineTo(p[0], p[1]);
@@ -108,18 +141,29 @@ export default class ActiveContourTool extends BaseBrushTool {
               canvasContext.fillStyle = "#FFF";
               canvasContext.font = "10px Verdana";
               canvasContext.fillText("iteration: " + i + " / " + maxIteration + ' length: ' + iLength.toFixed(2), 10, 10)
+            }
           }
       });
 
       // acm.setSnakeDots(copy.map(a => [a[0][0], a[0][1]]));
       acm.compute();
+      // console.log(pixelsToDraw)
+    
+      // drawBrushPixels(
+      //   pixelsToDraw,//.map(a=>[a[0][0] + 10,a[0][1] + 20]),
+      //   cache.pixelData,
+      //   cache.activeSegmentIndex,
+      //   cache.columns
+      // );
+      //         csCore.updateImage(cache.evt.detail.element)
+              // throw new Error()
 
-      drawBrushPixels(
-        pixelsToDraw,
-        cache.pixelData,
-        cache.activeSegmentIndex,
-        cache.columns
-      );
+      // drawBrushPixels(
+      //   pixelsToDraw,
+      //   cache.pixelData,
+      //   cache.activeSegmentIndex,
+      //   cache.columns
+      // );
 
       // cornerstone.updateImage(cache.evt.detail.element);
     }, 1000);

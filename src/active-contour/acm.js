@@ -11,6 +11,8 @@ export const ACM = function(){
       this.maxlen = params.maxlen || Math.pow( 5, 2 );
       var threshold = params.threshold || .1;
 
+      this.params = params
+
       this.w = params.width;
       this.h = params.height;
 
@@ -35,7 +37,10 @@ export const ACM = function(){
       this.snake = [];
       var count = 20;
       var r = Math.max(this.w, this.h);
-      for (var i = 0; i < count; i++) {
+    // this.snake = this.params.dots
+    console.log('this.snake')
+    console.log(this.snake)
+          for (var i = 0; i < count; i++) {
           var a = Math.PI * 2 / count * i;
           var p = [
               Math.max(this.margin, Math.min(this.w - this.margin, ~~( this.w / 2 + Math.cos(a) * r ))),
@@ -43,6 +48,10 @@ export const ACM = function(){
           ];
           this.snake.push(p);
       }
+    //   console.log(this.snake)
+    //   console.log(this.params.dots)
+    //    throw new Error()
+      this.snake = this.params.dots.map(([x,y])=>[x*3.3,y*3.44])
       this.it = 0;
       this.length = 0;
       this.last = this.getsnakelength();
