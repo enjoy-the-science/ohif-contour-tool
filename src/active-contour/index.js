@@ -10,6 +10,9 @@ const external = csTools.importInternal('externalModules');
 const getCircle = csTools.importInternal('util/segmentationUtils').getCircle;
 const drawBrushPixels = csTools.importInternal('util/segmentationUtils').drawBrushPixels;
 
+
+let scale = null
+
 /**
 * @public
 * @class BrushTool
@@ -47,6 +50,7 @@ export default class ActiveContourTool extends BaseBrushTool {
       originalPicture.src = canvas.toDataURL()
 
       var acm = new ACM({
+          scale,
           maxIteration,
           minlen: Math.pow( .1,2 ),
           maxlen: Math.pow( 6,2 ),
@@ -97,6 +101,9 @@ export default class ActiveContourTool extends BaseBrushTool {
   * @returns {void}
   */
   _paint(evt) {
+    console.log(evt)
+    scale = evt.detail.viewport.scale
+
     const eventData = evt.detail;
     const { rows, columns } = eventData.image;
     const { x, y } = eventData.currentPoints.image;

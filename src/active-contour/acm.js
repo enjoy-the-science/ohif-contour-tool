@@ -15,6 +15,7 @@ export const ACM = function(){
 
       this.w = params.width;
       this.h = params.height;
+      this.scale = params.scale
 
       // {data: [], height, width}
       const imageData = params.imageData
@@ -34,24 +35,7 @@ export const ACM = function(){
   // compute -> update -> loop, _render ->
   function compute( _onComplete ) {
       this.onComplete = _onComplete;
-      this.snake = [];
-      var count = 20;
-      var r = Math.max(this.w, this.h);
-    // this.snake = this.params.dots
-    console.log('this.snake')
-    console.log(this.snake)
-          for (var i = 0; i < count; i++) {
-          var a = Math.PI * 2 / count * i;
-          var p = [
-              Math.max(this.margin, Math.min(this.w - this.margin, ~~( this.w / 2 + Math.cos(a) * r ))),
-              Math.max(this.margin, Math.min(this.h - this.margin, ~~( this.h / 2 + Math.sin(a) * r )))
-          ];
-          this.snake.push(p);
-      }
-    //   console.log(this.snake)
-    //   console.log(this.params.dots)
-    //    throw new Error()
-      this.snake = this.params.dots.map(([x,y])=>[x*3.3,y*3.44])
+      this.snake = this.params.dots.map(([x,y])=>[x*this.scale,y*this.scale])
       this.it = 0;
       this.length = 0;
       this.last = this.getsnakelength();
