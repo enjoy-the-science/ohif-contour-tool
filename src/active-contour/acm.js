@@ -16,6 +16,7 @@ export const ACM = function(){
       this.w = params.width;
       this.h = params.height;
       this.scale = params.scale
+      this.displayedArea = params.displayedArea
 
       // {data: [], height, width}
       const imageData = params.imageData
@@ -35,7 +36,22 @@ export const ACM = function(){
   // compute -> update -> loop, _render ->
   function compute( _onComplete ) {
       this.onComplete = _onComplete;
-      this.snake = this.params.dots.map(([x,y])=>[x*this.scale,y*this.scale])
+      console.log(this.params.dots)
+      if (this.w / this.h  > this.displayedArea.x / this.displayedArea.y) {
+        // borders are left and right
+        const borderWidth = (this.w - this.displayedArea.x * this.scale) / 2
+        this.snake = this.params.dots.map(([x,y])=>[
+            x*this.scale + borderWidth,
+            y*this.scale,
+        ])
+      } else {
+          const borderWidth = (this.h - this.displayedArea.y * this.scale) / 2
+          this.snake = this.params.dots.map(([x,y])=>[
+            x*this.scale,
+            y*this.scale + borderWidth,
+        ])
+      }
+
       this.it = 0;
       this.length = 0;
       this.last = this.getsnakelength();

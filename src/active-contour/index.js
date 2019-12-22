@@ -12,6 +12,7 @@ const drawBrushPixels = csTools.importInternal('util/segmentationUtils').drawBru
 
 
 let scale = null
+let displayedArea = null
 
 /**
 * @public
@@ -51,10 +52,11 @@ export default class ActiveContourTool extends BaseBrushTool {
 
       var acm = new ACM({
           scale,
+          displayedArea,
           maxIteration,
           minlen: Math.pow( .1,2 ),
           maxlen: Math.pow( 6,2 ),
-          threshold: .40,
+          threshold: .60,
 
           imageData: canvasContext.getImageData(0, 0, canvas.width, canvas.height),
           width: canvas.width,
@@ -71,7 +73,7 @@ export default class ActiveContourTool extends BaseBrushTool {
             canvasContext.clearRect(0, 0, canvas.width, canvas.height);
             canvasContext.drawImage(originalPicture, 0, 0);
             canvasContext.lineWidth = 1;
-            canvasContext.strokeStyle = "#fff";
+            canvasContext.strokeStyle = "#f00";
             canvasContext.fillStyle = Boolean(finished) ? "rgba( 255,0,0, .5 )" : "rgba(255,255,255,.5 )";
             canvasContext.beginPath();
 
@@ -101,8 +103,9 @@ export default class ActiveContourTool extends BaseBrushTool {
   * @returns {void}
   */
   _paint(evt) {
-    console.log(evt)
+    // console.log(evt)
     scale = evt.detail.viewport.scale
+    displayedArea = evt.detail.viewport.displayedArea.brhc
 
     const eventData = evt.detail;
     const { rows, columns } = eventData.image;
@@ -117,6 +120,7 @@ export default class ActiveContourTool extends BaseBrushTool {
     const radius = 1;
     const pointerArray = getCircle(radius, rows, columns, x, y);
     this.pixelsArray.push(pointerArray);
+
 
     const { labelmap2D, labelmap3D, shouldErase } = this.paintEventData;
 
