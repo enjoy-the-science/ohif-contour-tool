@@ -29,27 +29,55 @@ export default class CountourFillTool extends BaseBrushTool {
 
         const eventData = evt.detail;
         const {element, currentPoints} = eventData;
+        const {rows, columns} = eventData.image;
         this._startPainting(evt);
+
+        //get start coordinate
         this.startCoords = currentPoints.image;
+
+        //get labelmap
+        const {getters} = segmentationModule;
+        const {labelmap2D} = getters.labelmap2D(eventData.element);
+        const copyLabelMap = labelmap2D.pixelData;
+        const PixelData2D = get_2DArray(copyLabelMap, rows, columns);
+
+        //get ImagePixelData хранить только один вариант
+        this.imagePixelData = eventData.image.getPixelData();
+        this.imagePixelData2D = get_2DArray(this.imagePixelData, rows, columns);
+
+        //get area
+        let result = floodFill({
+            getter: function (x, y) {
+                return PixelData2D[y][x];
+            },
+            seed: [Math.round(this.startCoords.x), Math.round(this.startCoords.y)],
+            equals: function (a, b) {
+                return a === b;
+            },
+            diagonals: true
+        });
+
+        this.area = result.flooded; //возможно, сразу обработка
+
+
         this._drawing = true;
         super._startListeningForMouseUp(element);
         this._paint(evt);
-        
+
         return true;
 
     }
 
     _paint(evt) {
 
-        const {configuration} = segmentationModule;
         const eventData = evt.detail;
-        const element = eventData.element;
         const {rows, columns} = eventData.image;
 
-        //get start points
+
+        //start points
         let xS = this.startCoords.x.valueOf();
         let yS = this.startCoords.y.valueOf();
-        
+
         //get current points
         const {x, y} = eventData.currentPoints.image;
 
@@ -57,18 +85,21 @@ export default class CountourFillTool extends BaseBrushTool {
             return;
         }
 
-        //get ImagePixelData
-        const image = eventData.image;
-        const imagePixelData = image.getPixelData();
-        
-        //get 2D-array
-        const imagePixelData2D = get_2DArray(imagePixelData, image.height, image.width);
+        //ImagePixelData (убрать лишнее)
+        const imagePixelData = this.imagePixelData;
+        //2D-array
+        const imagePixelData2D = this.imagePixelData2D;
 
-        //count tolerance (need change function) deltaY and deltaX begin with 1 value
+        //Area
+
+
+        //count tolerance (изменить функцию)
         const tolerance = count_tolerance(Math.abs(yS - y), get_max(imagePixelData));
         console.log(`tolerance ${tolerance}`);
 
-        //Flood fill (TODO borders)
+        const {labelmap2D, labelmap3D} = this.paintEventData;
+
+        //Flood fill
         let result = floodFill({
             getter: function (x, y) {
                 return imagePixelData2D[y][x];
@@ -80,16 +111,15 @@ export default class CountourFillTool extends BaseBrushTool {
             diagonals: true
         });
 
-        let pointerArray = result.flooded; // TODO fill spaces abd round contours
+        let pointerArray = result.flooded;
 
-        const {labelmap2D, labelmap3D, shouldErase} = this.paintEventData;
 
         drawBrushPixels(
             pointerArray,
             labelmap2D.pixelData,
             labelmap3D.activeSegmentIndex,
             columns,
-            shouldErase
+            false
         );
 
         cornerstone.updateImage(evt.detail.element);
@@ -97,7 +127,6 @@ export default class CountourFillTool extends BaseBrushTool {
 
     //TODO renderBrush
 }
-
 
 
 function eraseIfSegmentIndex(
@@ -130,8 +159,8 @@ function drawBrushPixels(
     });
 }
 
-function get_2DArray(imagePixelData, imageHeight, imageWidth){
-   
+function get_2DArray(imagePixelData, imageHeight, imageWidth) {
+
     let Array2d = [];
 
     for (let i = 0; i < imageHeight; i++) {
@@ -143,24 +172,22 @@ function get_2DArray(imagePixelData, imageHeight, imageWidth){
     return Array2d;
 }
 
-//get max in array (need change) max different
+
 function get_max(data) {
-    
+
     let max_val = 0;
-    
+
     for (let i = 0; i < data.length; i++) {
         if (data[i] > max_val) {
             max_val = data[i];
         }
     }
-    
+
     return max_val;
 }
 
 
-
-//count tolerance (in progress) deltaX 2dpixelarray, max_val will be count 
 function count_tolerance(deltaY, max_val) {
-    
+
     return max_val * Math.tanh(0.15 * (deltaY / 10));
 }
