@@ -38,8 +38,7 @@ export default class CountourFillTool extends BaseBrushTool {
         //get labelmap
         const {getters} = segmentationModule;
         const {labelmap2D} = getters.labelmap2D(eventData.element);
-        const copyLabelMap = labelmap2D.pixelData;
-        const PixelData2D = get_2DArray(copyLabelMap, rows, columns);
+        const PixelData2D = get_2DArray(labelmap2D.pixelData, rows, columns);
 
         //get ImagePixelData хранить только один вариант
         this.imagePixelData = eventData.image.getPixelData();
@@ -57,7 +56,7 @@ export default class CountourFillTool extends BaseBrushTool {
             diagonals: true
         });
 
-        this.area = result.flooded; //возможно, сразу обработка
+        this.area = result.flooded;
 
 
         this._drawing = true;
@@ -91,7 +90,16 @@ export default class CountourFillTool extends BaseBrushTool {
         const imagePixelData2D = this.imagePixelData2D;
 
         //Area
+        const area = this.area;
 
+        function inArea(x, y) {
+            for (let i = 0; i < area.length; i++) {
+                if ((area[i][0] === x) && (area[i][1] === y)) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         //count tolerance (изменить функцию)
         const tolerance = count_tolerance(Math.abs(yS - y), get_max(imagePixelData));
@@ -102,7 +110,10 @@ export default class CountourFillTool extends BaseBrushTool {
         //Flood fill
         let result = floodFill({
             getter: function (x, y) {
-                return imagePixelData2D[y][x];
+                if (inArea(x, y)) {
+                    return imagePixelData2D[y][x];
+                }
+
             },
             seed: [Math.round(xS), Math.round(yS)],
             equals: function (a, b) {
@@ -113,7 +124,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         let pointerArray = result.flooded;
 
-
+        // добавить сглаживание контура + заполнить пробелы
         drawBrushPixels(
             pointerArray,
             labelmap2D.pixelData,
@@ -126,6 +137,7 @@ export default class CountourFillTool extends BaseBrushTool {
     }
 
     //TODO renderBrush
+    //TODO fix bag
 }
 
 
