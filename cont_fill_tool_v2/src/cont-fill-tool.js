@@ -40,11 +40,11 @@ export default class CountourFillTool extends BaseBrushTool {
         const {labelmap2D} = getters.labelmap2D(eventData.element);
         const PixelData2D = get_2DArray(labelmap2D.pixelData, rows, columns);
 
-        //get ImagePixelData хранить только один вариант
-        this.imagePixelData = eventData.image.getPixelData();
-        this.imagePixelData2D = get_2DArray(this.imagePixelData, rows, columns);
+        //get ImagePixelData
+        const imagePixelData = eventData.image.getPixelData();
+        this.imagePixelData2D = get_2DArray(imagePixelData, rows, columns);
 
-        //get area
+        //get contour area
         let result = floodFill({
             getter: function (x, y) {
                 return PixelData2D[y][x];
@@ -58,6 +58,12 @@ export default class CountourFillTool extends BaseBrushTool {
 
         this.area = result.flooded;
 
+        //get coeff for count tolerance
+        let areaPixelData = [];
+        for (let i = 0; i < this.area.length; i++) {
+            areaPixelData.push(this.imagePixelData2D[this.area[i][0]][this.area[i][1]]);
+        }
+        this.max_diff = get_max_diff(areaPixelData);
 
         this._drawing = true;
         super._startListeningForMouseUp(element);
@@ -84,14 +90,13 @@ export default class CountourFillTool extends BaseBrushTool {
             return;
         }
 
-        //ImagePixelData (убрать лишнее)
-        const imagePixelData = this.imagePixelData;
-        //2D-array
+        //ImagePixelData
         const imagePixelData2D = this.imagePixelData2D;
 
         //Area
         const area = this.area;
 
+        //?
         function inArea(x, y) {
             for (let i = 0; i < area.length; i++) {
                 if ((area[i][0] === x) && (area[i][1] === y)) {
@@ -101,8 +106,14 @@ export default class CountourFillTool extends BaseBrushTool {
             return false;
         }
 
-        //count tolerance (изменить функцию)
-        const tolerance = count_tolerance(Math.abs(yS - y), get_max(imagePixelData));
+        //count tolerance
+        const coeff = this.max_diff;
+
+        const get_delta = (pointSt, pointFin) => {
+            return Math.abs(pointSt - pointFin)
+        };
+
+        const tolerance = count_tolerance(get_delta(xS, x), get_delta(yS, y), coeff);
         console.log(`tolerance ${tolerance}`);
 
         const {labelmap2D, labelmap3D} = this.paintEventData;
@@ -136,8 +147,9 @@ export default class CountourFillTool extends BaseBrushTool {
         cornerstone.updateImage(evt.detail.element);
     }
 
-    //TODO renderBrush
+    //TODO renderBrush cursor
     //TODO fix bag
+    //TODO clean and document code
 }
 
 
@@ -184,22 +196,29 @@ function get_2DArray(imagePixelData, imageHeight, imageWidth) {
     return Array2d;
 }
 
+function get_max_diff(data) {
 
-function get_max(data) {
-
-    let max_val = 0;
-
+    let max_diff = 1;
     for (let i = 0; i < data.length; i++) {
-        if (data[i] > max_val) {
-            max_val = data[i];
+        let buf = data[i];
+        for (let j = 0; j < data.length; j++) {
+            if (Math.abs(buf - data[j]) > max_diff) {
+                max_diff = Math.abs(buf - data[j]);
+            }
         }
     }
 
-    return max_val;
+    return max_diff;
 }
 
+function count_tolerance(deltaX, deltaY, coeff) {
 
-function count_tolerance(deltaY, max_val) {
-
-    return max_val * Math.tanh(0.15 * (deltaY / 10));
+    if (deltaY === 0) {
+        return coeff * Math.tanh(0.1 * deltaX);
+    } else if (deltaX === 0) {
+        return coeff * Math.tanh(0.1 * deltaY);
+    } else {
+        return coeff * Math.tanh(0.1 * (deltaY + deltaX));
+    }
 }
+
