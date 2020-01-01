@@ -13,7 +13,6 @@ export default class CountourFillTool extends BaseBrushTool {
             name: 'CountourFill',
             supportedInteractionTypes: ['Mouse', 'Touch'],
             configuration: {},
-            //mixins: ['renderBrushMixin'],
         };
 
         super(props, defaultProps);
@@ -40,7 +39,7 @@ export default class CountourFillTool extends BaseBrushTool {
         const {labelmap2D} = getters.labelmap2D(eventData.element);
         const PixelData2D = get_2DArray(labelmap2D.pixelData, rows, columns);
 
-        //get ImagePixelData
+        //get imagePixelData
         const imagePixelData = eventData.image.getPixelData();
         this.imagePixelData2D = get_2DArray(imagePixelData, rows, columns);
 
@@ -78,8 +77,6 @@ export default class CountourFillTool extends BaseBrushTool {
         const eventData = evt.detail;
         const {rows, columns} = eventData.image;
 
-
-        //start points
         let xS = this.startCoords.x.valueOf();
         let yS = this.startCoords.y.valueOf();
 
@@ -90,21 +87,18 @@ export default class CountourFillTool extends BaseBrushTool {
             return;
         }
 
-        //ImagePixelData
         const imagePixelData2D = this.imagePixelData2D;
 
-        //Area
         const area = this.area;
 
-        //?
-        function inArea(x, y) {
+        const inArea = (x, y) => {
             for (let i = 0; i < area.length; i++) {
                 if ((area[i][0] === x) && (area[i][1] === y)) {
                     return true;
                 }
             }
             return false;
-        }
+        };
 
         //count tolerance
         const coeff = this.max_diff;
@@ -147,7 +141,7 @@ export default class CountourFillTool extends BaseBrushTool {
         cornerstone.updateImage(evt.detail.element);
     }
 
-    //TODO cursor
+    //cursor
     renderBrush(evt) {
         const {getters, configuration} = segmentationModule;
         const eventData = evt.detail;
@@ -211,7 +205,7 @@ export default class CountourFillTool extends BaseBrushTool {
     }
 
     //TODO fix bag
-    //TODO clean and document code
+    //TODO clean(+refactor) and document code
 }
 
 
