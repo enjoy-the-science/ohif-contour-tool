@@ -4,6 +4,10 @@ import cornerstone from "cornerstone-core";
 const BaseBrushTool = csTools.importInternal("base/BaseBrushTool");
 import floodFill from "n-dimensional-flood-fill";
 
+const {drawBrushPixels} = csTools.importInternal(
+    'util/segmentationUtils'
+);
+
 
 const segmentationModule = csTools.getModule('segmentation');
 
@@ -91,6 +95,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         const area = this.area;
 
+        //? too slow, when get big area
         const inArea = (x, y) => {
             for (let i = 0; i < area.length; i++) {
                 if ((area[i][0] === x) && (area[i][1] === y)) {
@@ -129,7 +134,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         let pointerArray = result.flooded;
 
-        // добавить сглаживание контура + заполнить пробелы
+        //? добавить сглаживание контура + заполнить пробелы
         drawBrushPixels(
             pointerArray,
             labelmap2D.pixelData,
@@ -141,6 +146,7 @@ export default class CountourFillTool extends BaseBrushTool {
         cornerstone.updateImage(evt.detail.element);
     }
 
+
     //cursor
     renderBrush(evt) {
         const {getters, configuration} = segmentationModule;
@@ -149,9 +155,15 @@ export default class CountourFillTool extends BaseBrushTool {
 
         let mousePosition;
 
-        if (this._drawing) {
-            mousePosition = this._lastImageCoords;
-        } else if (this._mouseUpRender) {
+
+        /*
+
+        */
+
+        //if (this._drawing) {
+        //    mousePosition = this._lastImageCoords;
+        //} else
+        if (this._mouseUpRender) {
             mousePosition = this._lastImageCoords;
             this._mouseUpRender = false;
         } else {
@@ -190,6 +202,7 @@ export default class CountourFillTool extends BaseBrushTool {
         this.shouldErase = !isInside;
         context.beginPath();
         context.strokeStyle = color;
+        context.fillStyle = "rgba(128,128,128,0.5)";
         context.ellipse(
             mouseCoordsCanvas.x,
             mouseCoordsCanvas.y,
@@ -200,43 +213,11 @@ export default class CountourFillTool extends BaseBrushTool {
             2 * Math.PI,
         );
         context.stroke();
+        context.fill();
 
         this._lastImageCoords = eventData.image;
     }
 
-    //TODO fix bag
-    //TODO clean(+refactor) and document code
-}
-
-
-function eraseIfSegmentIndex(
-    pixelIndex,
-    pixelData,
-    segmentIndex
-) {
-    if (pixelData[pixelIndex] === segmentIndex) {
-        pixelData[pixelIndex] = 0;
-    }
-}
-
-function drawBrushPixels(
-    pointerArray,
-    pixelData,
-    segmentIndex,
-    columns,
-    shouldErase = false
-) {
-    const getPixelIndex = (x, y) => y * columns + x;
-
-    pointerArray.forEach(point => {
-        const spIndex = getPixelIndex(...point);
-
-        if (shouldErase) {
-            eraseIfSegmentIndex(spIndex, pixelData, segmentIndex);
-        } else {
-            pixelData[spIndex] = segmentIndex;
-        }
-    });
 }
 
 function get_2DArray(imagePixelData, imageHeight, imageWidth) {
@@ -264,18 +245,23 @@ function get_max_diff(data) {
         }
     }
 
-    return max_diff + max_diff * 0.05; //?
+    return max_diff + max_diff * 0.1;
 }
 
-//work with tolerance
+//?(максимальная граница + более медленный рост + гибкое изменение)
 function count_tolerance(deltaX, deltaY, coeff) {
 
     if (deltaY === 0) {
-        return coeff * Math.tanh(0.1 * deltaX);
+        return coeff * Math.tanh(0.02 * deltaX);
     } else if (deltaX === 0) {
-        return coeff * Math.tanh(0.1 * deltaY);
+        return coeff * Math.tanh(0.02 * deltaY);
     } else {
-        return coeff * Math.tanh(0.1 * (deltaY + deltaX));
+        return coeff * Math.tanh(0.02 * (deltaY + deltaX));
     }
 }
+
+
+//TODO cursor
+//TODO result flood fill, (tolerance)
+//TODO clean(+refactor) and document code + fix bag
 
