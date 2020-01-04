@@ -28,7 +28,7 @@ export default class CountourFillTool extends BaseBrushTool {
     }
 
     init(evt) {
-        
+
         const eventData = evt.detail;
         const element = eventData.element;
 
@@ -56,6 +56,7 @@ export default class CountourFillTool extends BaseBrushTool {
         };
     }
 
+//?блокировать переключение снимков
     preMouseDownCallback(evt) {
 
         const eventData = evt.detail;
@@ -68,6 +69,7 @@ export default class CountourFillTool extends BaseBrushTool {
         const imagePixelData = eventData.image.getPixelData();
         this.imagePixelData2D = get_2DArray(imagePixelData, this.rows, this.columns);
 
+        //need closed path
         let result = floodFill({
             getter: function (x, y) {
                 return PixelData2D[y][x];
@@ -79,13 +81,12 @@ export default class CountourFillTool extends BaseBrushTool {
             diagonals: true
         });
 
-        this.area = result.flooded;
-
-        let areaPixelData = [];
-        for (let i = 0; i < this.area.length; i++) {
-            areaPixelData.push(this.imagePixelData2D[this.area[i][0]][this.area[i][1]]);
+        const area = result.flooded;
+        this.areaMap = new Map();
+        for (let i = 0; i < area.length; i++) {
+            this.areaMap.set((area[i][0] + area[i][1] * this.columns), this.imagePixelData2D[area[i][0]][area[i][1]]);
         }
-        this.max_diff = get_max_diff(areaPixelData);
+        this.max_diff = get_max_diff_map(this.areaMap);
 
         this._drawing = true;
         super._startListeningForMouseUp(element);
@@ -106,6 +107,7 @@ export default class CountourFillTool extends BaseBrushTool {
     }
 
     _drawingMouseUpCallback(evt) {
+
         const eventData = evt.detail;
         const {element, currentPoints} = eventData;
 
@@ -117,7 +119,6 @@ export default class CountourFillTool extends BaseBrushTool {
 
     _paint(evt) {
 
-
         const rows = this.rows;
         const columns = this.columns;
 
@@ -127,24 +128,12 @@ export default class CountourFillTool extends BaseBrushTool {
         let x = this.finishCoords.x.valueOf();
         let y = this.finishCoords.y.valueOf();
 
-
         if (x < 0 || x > columns || y < 0 || y > rows) {
             return;
         }
 
         const imagePixelData2D = this.imagePixelData2D;
-
-        const area = this.area;
-
-        //? too slow, when get big area
-        const inArea = (x, y) => {
-            for (let i = 0; i < area.length; i++) {
-                if ((area[i][0] === x) && (area[i][1] === y)) {
-                    return true;
-                }
-            }
-            return false;
-        };
+        const area = this.areaMap;
 
         const k = this.max_diff;
 
@@ -159,7 +148,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         let result = floodFill({
             getter: function (x, y) {
-                if (inArea(x, y)) {
+                if (area.has(x + y * columns)) {
                     return imagePixelData2D[y][x];
                 }
 
@@ -187,6 +176,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
 
     renderBrush(evt) {
+
         const {getters} = segmentationModule;
         const eventData = evt.detail;
         const viewport = eventData.viewport;
@@ -314,21 +304,6 @@ function get_2DArray(imagePixelData, imageHeight, imageWidth) {
     return Array2d;
 }
 
-function get_max_diff(data) {
-
-    let max_diff = 1;
-    for (let i = 0; i < data.length; i++) {
-        let buff = data[i];
-        for (let j = 0; j < data.length; j++) {
-            if (Math.abs(buff - data[j]) > max_diff) {
-                max_diff = Math.abs(buff - data[j]);
-            }
-        }
-    }
-
-    return max_diff + max_diff * 0.1;
-}
-
 //?(максимальная граница + более медленный рост + гибкое изменение)
 function count_tolerance(deltaX, deltaY, k) {
 
@@ -341,6 +316,21 @@ function count_tolerance(deltaX, deltaY, k) {
     }
 }
 
+function get_max_diff_map(areaMap) {
+
+    let max_val = 0;
+    let min_val = 10000;//
+
+    for (let pix of areaMap.values()) {
+        max_val = Math.max(pix, max_val);
+        min_val = Math.min(pix, min_val);
+    }
+    let max_diff = max_val - min_val;
+
+    return max_diff + max_diff * 0.1;
+
+
+}
 
 
 

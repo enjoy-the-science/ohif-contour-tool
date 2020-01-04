@@ -108,7 +108,7 @@ export default class CountourFillTool extends BaseBrushTool {
       return;
     }
 
-    const radius = configuration.radius;
+    const radius = 1;
     const pointerArray = getCircle(radius, rows, columns, x, y);
 
     const { labelmap2D, labelmap3D, shouldErase } = this.paintEventData;
@@ -124,85 +124,3 @@ export default class CountourFillTool extends BaseBrushTool {
     external.cornerstone.updateImage(evt.detail.element);
   }
 }
-/*
-import csTools from "cornerstone-tools";
-import * as d3 from "d3";
-const getNewContext = csTools.importInternal("drawing/getNewContext");
-const BaseBrushTool = csTools.importInternal("base/BaseBrushTool");
-
-//TODO Otsu threshold
-//TODO search contours function
-//TODO draw cont
-//TODO fragment по точке + все на фрагмент перенести
-//TODO выделение
-//тест на разных снимках, исправить все неточности(цвет,размерность)
-
-function mean_thresh(data) {
-  let threshold = 0;
-  let sum = 0;
-  for(let i = 0; i < data.length; i++){
-    sum = sum + data[i];
-  }
-  threshold = sum/data.length;
-  return threshold;
-}
-
-function prepareDataForSearch(imageData, imageWidth, imageHeight) {
-  const values = new Float64Array(imageWidth * imageHeight);
-  //StackBlur.R(imageData, 3); TODO import filtr
-  for (let j = 0, k = 0; j < imageHeight; ++j) {
-      for (let i = 0; i < imageWidth; ++i, ++k) {
-          values[k] = imageData[(k << 2)];
-      }
-  }
-  return values;
-}
-
-export default class CountourFillTool extends BaseBrushTool {
-  constructor(name = "CountourFill") {
-    super({
-      name,
-      supportedInteractionTypes: ["Mouse"]
-    });
-  }
-  
-  preMouseDownCallback(evt) {
-
-    console.log("Threshold:");
-    const eventData = evt.detail;
-    const { image, element } = eventData;
-
-    
-
-    const imageWidth = image.width;
-    const imageHeight = image.height;
-    const PixelData = image.getPixelData();
-
-    console.log(mean_thresh(PixelData));
-    
-    const threshold_mean = mean_thresh(PixelData);
-    let contoursArray = d3.contours().size([imageWidth, imageHeight]);
-    let contours = contours.contour(prepareDataForSearch(PixelData,imageWidth,imageHeight), threshold_mean);
-    //console.log(element.cornestone-canvas);
-    //const context = getNewContext(element.cornestone-canvas);
-    //let projection = d3.geoIdentity().scale(imageWidth / imageWidth);
-    //const path = d3.geoPath(projection, context);
-    //context.strokeStyle = "aqua";
-    //context.lineWidth = "2";
-    //context.beginPath();
-    //path(contours.contour(prepareDataForSearch(PixelData,imageWidth,imageHeight), threshold_mean));
-    //context.stroke();
-  
-
-  }
-
-  activeCallback(element) {
-    console.log(`plugin activated`);
-  }
-
-  disabledCallback(element) {
-    console.log(`plugin deactivated`);
-  }
-
-}
-*/
