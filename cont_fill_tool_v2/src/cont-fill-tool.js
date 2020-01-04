@@ -304,7 +304,7 @@ function get_2DArray(imagePixelData, imageHeight, imageWidth) {
     return Array2d;
 }
 
-//?(максимальная граница + более медленный рост + гибкое изменение)
+//?(максимальная граница + более медленный рост + гибкое изменение + поиск коеффициента)
 function count_tolerance(deltaX, deltaY, k) {
 
     if (deltaY === 0) {
@@ -319,16 +319,15 @@ function count_tolerance(deltaX, deltaY, k) {
 function get_max_diff_map(areaMap) {
 
     let max_val = 0;
-    let min_val = 10000;//
+    let min_val = 10000;
 
     for (let pix of areaMap.values()) {
         max_val = Math.max(pix, max_val);
         min_val = Math.min(pix, min_val);
     }
-    let max_diff = max_val - min_val;
+    let max_diff = Math.abs(max_val - min_val);
 
     return max_diff + max_diff * 0.1;
-
 
 }
 
