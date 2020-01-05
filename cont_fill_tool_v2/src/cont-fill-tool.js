@@ -102,8 +102,9 @@ export default class CountourFillTool extends BaseBrushTool {
         this.finishCoords = currentPoints.image;
         this._lastImageCoords = currentPoints.image;
 
-        this.renderBrush(evt);
+
         this._paint(evt);
+        cornerstone.updateImage(evt.detail.element);
     }
 
     _drawingMouseUpCallback(evt) {
@@ -213,7 +214,7 @@ export default class CountourFillTool extends BaseBrushTool {
             this.shouldErase = !isInside;
             context.beginPath();
             context.strokeStyle = color;
-            context.fillStyle = "rgba(128,128,128,0.5)";
+            context.fillStyle = "rgba(128,128,128,0.005)";
 
             const startCoordsCanvas = window.cornerstone.pixelToCanvas(
                 element,
@@ -272,7 +273,7 @@ export default class CountourFillTool extends BaseBrushTool {
             this.shouldErase = !isInside;
             context.beginPath();
             context.strokeStyle = color;
-            context.fillStyle = "rgba(128,128,128,0.5)";
+            context.fillStyle = "rgba(128,128,128,0.005)";
             context.ellipse(
                 mouseCoordsCanvas.x,
                 mouseCoordsCanvas.y,
