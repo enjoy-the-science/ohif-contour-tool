@@ -23,7 +23,7 @@ export default class PencilMLTool extends BaseAnnotationTool {
     super(props, defaultProps);
 
     if (!this.configuration.backendHost) {
-      this.configuration.backendHost = 'http://localhost:8080';
+      this.configuration.backendHost = '';
     }
 
     this.preventNewMeasurement = false;
