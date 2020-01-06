@@ -26,6 +26,12 @@ export default class PencilMLTool extends BaseAnnotationTool {
       this.configuration.backendHost = '';
     }
 
+    if (!this.configuration.notificationService) {
+      this.configuration.notificationService = {
+        show: () => {},
+      };
+    }
+
     this.preventNewMeasurement = false;
   }
 
@@ -180,12 +186,32 @@ export default class PencilMLTool extends BaseAnnotationTool {
               measurementData.handles.fourth,
               this.options,
               interactionType,
-              () => {
-                measurementData.active = false;
+              async () => {
                 this.preventNewMeasurement = false;
+
                 cornerstone.updateImage(element);
 
-                this.drawMask(element, measurementData.handles);
+                const currentCursor = element.style.cursor;
+
+                element.style.cursor = 'wait';
+
+                cornerstoneTools.setToolDisabled('StackScrollMouseWheel', {});
+
+                try {
+                  await this.drawMask(element, measurementData.handles);
+                } catch (_) {
+                  this.configuration.notificationService.show({
+                    title: 'PencilML Tool',
+                    message: 'Error during pixel mask fetching',
+                    type: 'error',
+                  });
+                }
+
+                element.style.cursor = currentCursor;
+
+                cornerstoneTools.setToolActive('StackScrollMouseWheel', {});
+                measurementData.active = false;
+                measurementData.visible = false;
               }
             );
           }
@@ -204,7 +230,6 @@ export default class PencilMLTool extends BaseAnnotationTool {
 
     const pixelArray = image.getPixelData();
     let grayScale;
-
 
     /**
      * To add another image modality just add new case
