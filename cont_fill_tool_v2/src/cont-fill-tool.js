@@ -61,14 +61,18 @@ export default class CountourFillTool extends BaseBrushTool {
         const eventData = evt.detail;
         this.init(evt);
         const {element, currentPoints} = eventData;
+
+        //точка старта
         this.startCoords = currentPoints.image;
 
-        this.labelmap = get_2DArray(this.paintEventData.labelmap2D.pixelData, this.rows, this.columns);
+        //матрица с метками сегментации, используется для определения границ
+        this.labelmap = get2DArray(this.paintEventData.labelmap2D.pixelData, this.rows, this.columns);
 
-        const imagePixelData = eventData.image.getPixelData();
-        this.imagePixelData2D = get_2DArray(imagePixelData, this.rows, this.columns);
+        //матрица изображения
+        this.imagePixelData2D = get2DArray(eventData.image.getPixelData(), this.rows, this.columns);
 
-        this.max_val = get_max(imagePixelData);//
+        //максимальное значение пикселя в изображении, используется для расчета коеф. для функции толерантности
+        this.maxPix = findMaxInArray(eventData.image.getPixelData());
 
         this._drawing = true;
         super._startListeningForMouseUp(element);
@@ -81,6 +85,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         const {currentPoints} = evt.detail;
 
+        //текущая точка
         this.finishCoords = currentPoints.image;
         this._lastImageCoords = currentPoints.image;
 
@@ -104,38 +109,44 @@ export default class CountourFillTool extends BaseBrushTool {
         const rows = this.rows;
         const columns = this.columns;
 
-        let xS = this.startCoords.x.valueOf();
-        let yS = this.startCoords.y.valueOf();
+        let xStart = this.startCoords.x.valueOf();
+        let yStart = this.startCoords.y.valueOf();
 
-        let x = this.finishCoords.x.valueOf();
-        let y = this.finishCoords.y.valueOf();
+        let xEnd = this.finishCoords.x.valueOf();
+        let yEnd = this.finishCoords.y.valueOf();
 
-        if (x < 0 || x > columns || y < 0 || y > rows) {
+        if (xEnd < 0 || xEnd > columns || yEnd < 0 || yEnd > rows) {
             return;
         }
 
         const imagePixelData2D = this.imagePixelData2D;
         const labelmap = this.labelmap;
 
-        const k = this.max_val;//
-        const radius = rows * 0.25;//
-
-        const get_delta = (pointSt, pointFin) => {
+        //Получение дельты
+        const countDelta = (pointSt, pointFin) => {
             return Math.abs(pointSt - pointFin)
-        };//
+        };
 
-        const tolerance = count_tolerance(get_delta(xS, x), get_delta(yS, y), k);//
+        //Расчет радиуса области
+        const radius = rows * 0.25;
+        const radius1 = Math.max(countDelta(xStart, xEnd), countDelta(yStart, yEnd));//
+
+        //Расчет коеффициентов a, b для функции толерантности
+        const a = count_a(imagePixelData2D, radius1, xStart, yStart);
+        const b = count_b(a, this.maxPix);
+
+        //Расчет толерантности
+        const tolerance = countTolerance(countDelta(xStart, xEnd), countDelta(yStart, yEnd), a, b);
         console.log(`tolerance ${tolerance}`);
 
-        const {labelmap2D, labelmap3D} = this.paintEventData;
-
+        //Flood fill
         let result = floodFill({
             getter: function (x, y) {
-                if ((labelmap[y][x] !== 1) && (Math.sqrt(Math.pow(xS - x, 2) + Math.pow(yS - y, 2)) <= radius)) {
+                if ((labelmap[y][x] !== 1) && (Math.sqrt(Math.pow(xStart - x, 2) + Math.pow(yStart - y, 2)) <= radius)) {
                     return imagePixelData2D[y][x];
                 }
             },
-            seed: [Math.round(xS), Math.round(yS)],
+            seed: [Math.round(xStart), Math.round(yStart)],
             equals: function (a, b) {
                 return Math.abs(a - b) <= tolerance;
             },
@@ -143,6 +154,9 @@ export default class CountourFillTool extends BaseBrushTool {
         });
 
         let pointerArray = result.flooded;
+
+        //Отрисовка
+        const {labelmap2D, labelmap3D} = this.paintEventData;
 
         drawBrushPixels(
             pointerArray,
@@ -155,7 +169,7 @@ export default class CountourFillTool extends BaseBrushTool {
         cornerstone.updateImage(evt.detail.element);
     }
 
-
+    //Cursor
     renderBrush(evt) {
 
         const {getters} = segmentationModule;
@@ -270,7 +284,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
 }
 
-function get_2DArray(imagePixelData, imageHeight, imageWidth) {
+function get2DArray(imagePixelData, imageHeight, imageWidth) {
 
     let Array2d = [];
     for (let i = 0; i < imageHeight; i++) {
@@ -281,21 +295,18 @@ function get_2DArray(imagePixelData, imageHeight, imageWidth) {
     return Array2d;
 }
 
-//
-function count_tolerance(deltaX, deltaY, k) {
+function countTolerance(deltaX, deltaY, a, b) {
 
     if (deltaY === 0) {
-        return k * Math.tanh(0.02 * deltaX);
+        return a * Math.tanh(b * deltaX);
     } else if (deltaX === 0) {
-        return k * Math.tanh(0.02 * deltaY);
+        return a * Math.tanh(b * deltaY);
     } else {
-        return k * Math.tanh(0.02 * (deltaY + deltaX));
+        return a * Math.tanh(b * (deltaY + deltaX));
     }
 }
 
-
-//
-function get_max(data) {
+function findMaxInArray(data) {
     let max_val = 0;
     for (let i = 0; i < data.length; i++) {
         if (data[i] > max_val) {
@@ -304,3 +315,26 @@ function get_max(data) {
     }
     return max_val;
 }
+
+function count_a(imagePixelData2D, radius, xStart, yStart) {
+
+    let max = 0;//
+    let min = 10000;//
+
+    for (let i = 0; i < imagePixelData2D.length; i++) {
+        for (let j = 0; j < imagePixelData2D[i].length; j++) {
+            if (Math.sqrt(Math.pow(xStart - j, 2) + Math.pow(yStart - i, 2)) <= radius) {
+                max = Math.max(max, imagePixelData2D[i][j]);
+                min = Math.min(min, imagePixelData2D[i][j]);
+            }
+        }
+    }
+
+    return max - min;
+}
+
+function count_b(a, max) {
+    return Math.tanh(0.1 * (a / max));
+}
+
+
