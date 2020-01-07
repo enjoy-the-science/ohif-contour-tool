@@ -56,7 +56,6 @@ export default class CountourFillTool extends BaseBrushTool {
         };
     }
 
-//?блокировать переключение снимков
     preMouseDownCallback(evt) {
 
         const eventData = evt.detail;
@@ -64,29 +63,12 @@ export default class CountourFillTool extends BaseBrushTool {
         const {element, currentPoints} = eventData;
         this.startCoords = currentPoints.image;
 
-        const PixelData2D = get_2DArray(this.paintEventData.labelmap2D.pixelData, this.rows, this.columns);
+        this.labelmap = get_2DArray(this.paintEventData.labelmap2D.pixelData, this.rows, this.columns);
 
         const imagePixelData = eventData.image.getPixelData();
         this.imagePixelData2D = get_2DArray(imagePixelData, this.rows, this.columns);
 
-        //need closed path
-        let result = floodFill({
-            getter: function (x, y) {
-                return PixelData2D[y][x];
-            },
-            seed: [Math.round(this.startCoords.x), Math.round(this.startCoords.y)],
-            equals: function (a, b) {
-                return a === b;
-            },
-            diagonals: true
-        });
-
-        const area = result.flooded;
-        this.areaMap = new Map();
-        for (let i = 0; i < area.length; i++) {
-            this.areaMap.set((area[i][0] + area[i][1] * this.columns), this.imagePixelData2D[area[i][0]][area[i][1]]);
-        }
-        this.max_diff = get_max_diff_map(this.areaMap);
+        this.max_val = get_max(imagePixelData);//
 
         this._drawing = true;
         super._startListeningForMouseUp(element);
@@ -101,7 +83,6 @@ export default class CountourFillTool extends BaseBrushTool {
 
         this.finishCoords = currentPoints.image;
         this._lastImageCoords = currentPoints.image;
-
 
         this._paint(evt);
         cornerstone.updateImage(evt.detail.element);
@@ -134,25 +115,25 @@ export default class CountourFillTool extends BaseBrushTool {
         }
 
         const imagePixelData2D = this.imagePixelData2D;
-        const area = this.areaMap;
+        const labelmap = this.labelmap;
 
-        const k = this.max_diff;
+        const k = this.max_val;//
+        const radius = rows * 0.25;//
 
         const get_delta = (pointSt, pointFin) => {
             return Math.abs(pointSt - pointFin)
-        };
+        };//
 
-        const tolerance = count_tolerance(get_delta(xS, x), get_delta(yS, y), k);
+        const tolerance = count_tolerance(get_delta(xS, x), get_delta(yS, y), k);//
         console.log(`tolerance ${tolerance}`);
 
         const {labelmap2D, labelmap3D} = this.paintEventData;
 
         let result = floodFill({
             getter: function (x, y) {
-                if (area.has(x + y * columns)) {
+                if ((labelmap[y][x] !== 1) && (Math.sqrt(Math.pow(xS - x, 2) + Math.pow(yS - y, 2)) <= radius)) {
                     return imagePixelData2D[y][x];
                 }
-
             },
             seed: [Math.round(xS), Math.round(yS)],
             equals: function (a, b) {
@@ -163,7 +144,6 @@ export default class CountourFillTool extends BaseBrushTool {
 
         let pointerArray = result.flooded;
 
-        //?добавить сглаживание контура + заполнить пробелы
         drawBrushPixels(
             pointerArray,
             labelmap2D.pixelData,
@@ -199,10 +179,8 @@ export default class CountourFillTool extends BaseBrushTool {
                 return;
             }
 
-            const radius = 1;
             const context = this.context;
             const element = eventData.element;
-            const color = getters.brushColor(element, this._drawing);
 
             context.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -213,8 +191,8 @@ export default class CountourFillTool extends BaseBrushTool {
             const isInside = labelmap2D.pixelData[spIndex] === 1;
             this.shouldErase = !isInside;
             context.beginPath();
-            context.strokeStyle = color;
-            context.fillStyle = "rgba(128,128,128,0.005)";
+            context.strokeStyle = "rgba(255,255,255,0.1)";
+            context.fillStyle = "rgba(255,255,255,0.1)";
 
             const startCoordsCanvas = window.cornerstone.pixelToCanvas(
                 element,
@@ -251,7 +229,7 @@ export default class CountourFillTool extends BaseBrushTool {
                 return;
             }
 
-            const radius = 1;
+            const radius = 2;
             const context = eventData.canvasContext;
             this.context = eventData.canvasContext;
             const element = eventData.element;
@@ -273,7 +251,7 @@ export default class CountourFillTool extends BaseBrushTool {
             this.shouldErase = !isInside;
             context.beginPath();
             context.strokeStyle = color;
-            context.fillStyle = "rgba(128,128,128,0.005)";
+            context.fillStyle = "rgba(128,128,128,0.5)";
             context.ellipse(
                 mouseCoordsCanvas.x,
                 mouseCoordsCanvas.y,
@@ -295,17 +273,15 @@ export default class CountourFillTool extends BaseBrushTool {
 function get_2DArray(imagePixelData, imageHeight, imageWidth) {
 
     let Array2d = [];
-
     for (let i = 0; i < imageHeight; i++) {
         Array2d.push(
             Array.from(imagePixelData.slice(i * imageWidth, (i + 1) * imageWidth))
         );
     }
-
     return Array2d;
 }
 
-//?(максимальная граница + более медленный рост + гибкое изменение + поиск коеффициента)
+//
 function count_tolerance(deltaX, deltaY, k) {
 
     if (deltaY === 0) {
@@ -317,20 +293,14 @@ function count_tolerance(deltaX, deltaY, k) {
     }
 }
 
-function get_max_diff_map(areaMap) {
 
+//
+function get_max(data) {
     let max_val = 0;
-    let min_val = 10000;
-
-    for (let pix of areaMap.values()) {
-        max_val = Math.max(pix, max_val);
-        min_val = Math.min(pix, min_val);
+    for (let i = 0; i < data.length; i++) {
+        if (data[i] > max_val) {
+            max_val = data[i];
+        }
     }
-    let max_diff = Math.abs(max_val - min_val);
-
-    return max_diff + max_diff * 0.1;
-
+    return max_val;
 }
-
-
-
