@@ -62,16 +62,39 @@ export default class CountourFillTool extends BaseBrushTool {
         this.init(evt);
         const {element, currentPoints} = eventData;
 
-        //точка старта
+        // Start point
         this.startCoords = currentPoints.image;
 
-        //матрица с метками сегментации, используется для определения границ
+        // Segmentation label matrix
+        // used to define boundaries
         this.labelmap = get2DArray(this.paintEventData.labelmap2D.pixelData, this.rows, this.columns);
 
-        //матрица изображения
-        this.imagePixelData2D = get2DArray(eventData.image.getPixelData(), this.rows, this.columns);
+        const generalSeriesModuleMeta = cornerstone.metaData.get(
+            'generalSeriesModule',
+            eventData.image.imageId
+        );
 
-        //максимальное значение пикселя в изображении, используется для расчета коеф. для функции толерантности
+        const pixelArray = eventData.image.getPixelData();
+        let grayScale;
+
+        // This conversion avoids errors in finding the maximum difference between pixels
+        // (consider other cases or work with negative values correctly)
+        switch (generalSeriesModuleMeta.modality) {
+            case 'CT':
+                grayScale = pixelArray.map(value =>
+                    Math.round(((value + 2048) / 4096) * 256)
+                );
+                break;
+
+            default:
+                grayScale = pixelArray;
+        }
+
+        // Image matrix
+        this.imagePixelData2D = get2DArray(grayScale, this.rows, this.columns);
+
+        // Maximum pixel value in the image
+        // used to calculate coefficient for tolerance function
         this.maxPix = findMaxInArray(eventData.image.getPixelData());
 
         this._drawing = true;
@@ -85,7 +108,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         const {currentPoints} = evt.detail;
 
-        //текущая точка
+        // Current point
         this.finishCoords = currentPoints.image;
         this._lastImageCoords = currentPoints.image;
 
@@ -122,27 +145,37 @@ export default class CountourFillTool extends BaseBrushTool {
         const imagePixelData2D = this.imagePixelData2D;
         const labelmap = this.labelmap;
 
-        //Получение дельты
+        // Calculation of distance changes by x or by y
+        // Used as parameters for tolerance function and to calculate radius of the selected area
         const countDelta = (pointSt, pointFin) => {
             return Math.abs(pointSt - pointFin)
         };
 
-        //Расчет радиуса области
-        const radius = rows * 0.25;
-        const radius1 = Math.max(countDelta(xStart, xEnd), countDelta(yStart, yEnd));//
+        // Radius of bounding area
+        // border - circle
+        const circleRadius = rows * 0.25;
 
-        //Расчет коеффициентов a, b для функции толерантности
-        const a = count_a(imagePixelData2D, radius1, xStart, yStart);
+        // Radius of selected area
+        // area - ellipse
+        const radius_x = countDelta(xStart, xEnd);
+        const radius_y = countDelta(yStart, yEnd);
+
+        // Calculation of coefficients a, b for tolerance function
+        // where a - maximum difference between two pixel values on the selected area,
+        // b - tanh(a/maxPix)
+        const a = count_a(imagePixelData2D, radius_x, radius_y, xStart, yStart);
         const b = count_b(a, this.maxPix);
 
-        //Расчет толерантности
+        // Calculation of tolerance
+        // tolerance = a*tanh(b*x), where x - delta of distance
         const tolerance = countTolerance(countDelta(xStart, xEnd), countDelta(yStart, yEnd), a, b);
         console.log(`tolerance ${tolerance}`);
 
-        //Flood fill
+        // Flood fill algorithm with tolerance
+        // https://github.com/tuzz/n-dimensional-flood-fill
         let result = floodFill({
             getter: function (x, y) {
-                if ((labelmap[y][x] !== 1) && (Math.sqrt(Math.pow(xStart - x, 2) + Math.pow(yStart - y, 2)) <= radius)) {
+                if ((labelmap[y][x] !== 1) && (Math.sqrt(Math.pow(xStart - x, 2) + Math.pow(yStart - y, 2)) <= circleRadius)) {
                     return imagePixelData2D[y][x];
                 }
             },
@@ -155,7 +188,7 @@ export default class CountourFillTool extends BaseBrushTool {
 
         let pointerArray = result.flooded;
 
-        //Отрисовка
+        // Drawing
         const {labelmap2D, labelmap3D} = this.paintEventData;
 
         drawBrushPixels(
@@ -169,7 +202,7 @@ export default class CountourFillTool extends BaseBrushTool {
         cornerstone.updateImage(evt.detail.element);
     }
 
-    //Cursor
+    // Cursor
     renderBrush(evt) {
 
         const {getters} = segmentationModule;
@@ -243,7 +276,7 @@ export default class CountourFillTool extends BaseBrushTool {
                 return;
             }
 
-            const radius = 2;
+            const radius = 3 * (1 / viewport.scale);
             const context = eventData.canvasContext;
             this.context = eventData.canvasContext;
             const element = eventData.element;
@@ -264,8 +297,8 @@ export default class CountourFillTool extends BaseBrushTool {
             const isInside = labelmap2D.pixelData[spIndex] === 1;
             this.shouldErase = !isInside;
             context.beginPath();
-            context.strokeStyle = color;
-            context.fillStyle = "rgba(128,128,128,0.5)";
+            context.strokeStyle = "rgb(0,255,0)";
+            context.fillStyle = "rgb(0,255,0)";
             context.ellipse(
                 mouseCoordsCanvas.x,
                 mouseCoordsCanvas.y,
@@ -284,12 +317,13 @@ export default class CountourFillTool extends BaseBrushTool {
 
 }
 
-function get2DArray(imagePixelData, imageHeight, imageWidth) {
+
+function get2DArray(imagePixelData, height, width) {
 
     let Array2d = [];
-    for (let i = 0; i < imageHeight; i++) {
+    for (let i = 0; i < height; i++) {
         Array2d.push(
-            Array.from(imagePixelData.slice(i * imageWidth, (i + 1) * imageWidth))
+            Array.from(imagePixelData.slice(i * width, (i + 1) * width))
         );
     }
     return Array2d;
@@ -304,10 +338,11 @@ function countTolerance(deltaX, deltaY, a, b) {
     } else {
         return a * Math.tanh(b * (deltaY + deltaX));
     }
+
 }
 
 function findMaxInArray(data) {
-    let max_val = 0;
+    let max_val = data[0];
     for (let i = 0; i < data.length; i++) {
         if (data[i] > max_val) {
             max_val = data[i];
@@ -316,14 +351,14 @@ function findMaxInArray(data) {
     return max_val;
 }
 
-function count_a(imagePixelData2D, radius, xStart, yStart) {
+function count_a(imagePixelData2D, radius_x, radius_y, xStart, yStart) {
 
-    let max = 0;//
-    let min = 10000;//
+    let max = imagePixelData2D[0][0];
+    let min = imagePixelData2D[0][0];
 
     for (let i = 0; i < imagePixelData2D.length; i++) {
         for (let j = 0; j < imagePixelData2D[i].length; j++) {
-            if (Math.sqrt(Math.pow(xStart - j, 2) + Math.pow(yStart - i, 2)) <= radius) {
+            if ((Math.pow(j - xStart, 2) / radius_x ** 2) + (Math.pow(i - yStart, 2) / radius_y ** 2) <= 1) {
                 max = Math.max(max, imagePixelData2D[i][j]);
                 min = Math.min(min, imagePixelData2D[i][j]);
             }
@@ -334,7 +369,6 @@ function count_a(imagePixelData2D, radius, xStart, yStart) {
 }
 
 function count_b(a, max) {
-    return Math.tanh(0.1 * (a / max));
+    return Math.tanh(0.008 * (a / max));
 }
-
 
