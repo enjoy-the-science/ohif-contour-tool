@@ -208,115 +208,77 @@ export default class CountourFillTool extends BaseBrushTool {
         const {getters} = segmentationModule;
         const eventData = evt.detail;
         const viewport = eventData.viewport;
-
+        const context = eventData.canvasContext;
+        const element = eventData.element;
         let mousePosition;
+        let width, height;
 
         if (this._drawing) {
-            mousePosition = this._lastImageCoords; //end ellipse point
-            let startPointForDrawing = this.startCoords; //start ellipse point
 
-            if (!mousePosition) {
-                return;
-            }
+            let mouseEndPosition = this._lastImageCoords; //end ellipse point
+            mousePosition = this.startCoords; //start ellipse point
 
-            const {rows, columns} = eventData.image;
-            const {x, y} = mousePosition;
-
-            if (x < 0 || x > columns || y < 0 || y > rows) {
-                return;
-            }
-
-            const context = this.context;
-            const element = eventData.element;
-
-            context.setTransform(1, 0, 0, 1, 0, 0);
-
-            const {labelmap2D} = getters.labelmap2D(element);
-
-            const getPixelIndex = (x, y) => y * columns + x;
-            const spIndex = getPixelIndex(Math.floor(x), Math.floor(y));
-            const isInside = labelmap2D.pixelData[spIndex] === 1;
-            this.shouldErase = !isInside;
-            context.beginPath();
             context.strokeStyle = "rgba(255,255,255,0.1)";
             context.fillStyle = "rgba(255,255,255,0.1)";
 
-            const startCoordsCanvas = window.cornerstone.pixelToCanvas(
-                element,
-                startPointForDrawing,
-            );
+            width = Math.abs(mousePosition.x - mouseEndPosition.x) * viewport.scale;
+            height = Math.abs(mousePosition.y - mouseEndPosition.y) * viewport.scale;
 
-            let width = Math.abs(startPointForDrawing.x - mousePosition.x) * viewport.scale;
-            let height = Math.abs(startPointForDrawing.y - mousePosition.y) * viewport.scale;
-
-            context.ellipse(
-                startCoordsCanvas.x,
-                startCoordsCanvas.y,
-                width,
-                height,
-                0,
-                0,
-                2 * Math.PI,
-            );
-            context.stroke();
-            context.fill();
-
-            this._lastImageCoords = eventData.image;
         } else {
+
             mousePosition = csTools.store.state.mousePositionImage;
-
-            if (!mousePosition) {
-                return;
-            }
-
-            const {rows, columns} = eventData.image;
-            const {x, y} = mousePosition;
-
-            if (x < 0 || x > columns || y < 0 || y > rows) {
-                return;
-            }
-
             const radius = 3 * (1 / viewport.scale);
-            const context = eventData.canvasContext;
-            this.context = eventData.canvasContext;
-            const element = eventData.element;
-            const color = getters.brushColor(element, this._drawing);
-
-            context.setTransform(1, 0, 0, 1, 0, 0);
-
-            let circleRadius = radius * viewport.scale;
-            const mouseCoordsCanvas = window.cornerstone.pixelToCanvas(
-                element,
-                mousePosition,
-            );
-
-            const {labelmap2D} = getters.labelmap2D(element);
-
-            const getPixelIndex = (x, y) => y * columns + x;
-            const spIndex = getPixelIndex(Math.floor(x), Math.floor(y));
-            const isInside = labelmap2D.pixelData[spIndex] === 1;
-            this.shouldErase = !isInside;
-            context.beginPath();
+            width = radius * viewport.scale;
+            height = width;
             context.strokeStyle = "rgb(0,255,0)";
             context.fillStyle = "rgb(0,255,0)";
-            context.ellipse(
-                mouseCoordsCanvas.x,
-                mouseCoordsCanvas.y,
-                circleRadius,
-                circleRadius,
-                0,
-                0,
-                2 * Math.PI,
-            );
-            context.stroke();
-            context.fill();
 
-            this._lastImageCoords = eventData.image;
         }
+
+        if (!mousePosition) {
+            return;
+        }
+
+        const {rows, columns} = eventData.image;
+        const {x, y} = mousePosition;
+
+        if (x < 0 || x > columns || y < 0 || y > rows) {
+            return;
+        }
+
+        context.setTransform(1, 0, 0, 1, 0, 0);
+
+        const {labelmap2D} = getters.labelmap2D(element);
+
+        const getPixelIndex = (x, y) => y * columns + x;
+        const spIndex = getPixelIndex(Math.floor(x), Math.floor(y));
+        const isInside = labelmap2D.pixelData[spIndex] === 1;
+        this.shouldErase = !isInside;
+
+        context.beginPath();
+
+        const startCoordsCanvas = window.cornerstone.pixelToCanvas(
+            element,
+            mousePosition,
+        );
+
+        context.ellipse(
+            startCoordsCanvas.x,
+            startCoordsCanvas.y,
+            width,
+            height,
+            0,
+            0,
+            2 * Math.PI,
+        );
+
+        context.stroke();
+        context.fill();
+
+        this._lastImageCoords = eventData.image;
     }
 
 }
-
 
 function get2DArray(imagePixelData, height, width) {
 
@@ -369,6 +331,14 @@ function count_a(imagePixelData2D, radius_x, radius_y, xStart, yStart) {
 }
 
 function count_b(a, max) {
-    return Math.tanh(0.008 * (a / max));
+    return (Math.tanh(0.008 * (a / max)) < 0.001) ? 0.001 : Math.tanh(0.008 * (a / max));
 }
 
+//TODO блокировать снимки
+//TODO документирование функций и класса
+
+//TODO flood fill результат
+
+//отрицательные значения - временно решено
+//при маленькой разнице, слишком маленький коэфициент b -> медленный рост - есть временное решение
+//временное решение для толерантности сделано, все равно есть скачки
