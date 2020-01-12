@@ -171,11 +171,15 @@ export default class CountourFillTool extends BaseBrushTool {
         const tolerance = countTolerance(countDelta(xStart, xEnd), countDelta(yStart, yEnd), a, b);
         console.log(`tolerance ${tolerance}`);
 
+        const pointInCircle = (xSt, xEn, ySt, yEn) => {
+            return Math.sqrt(Math.pow(xSt - xEn, 2) + Math.pow(ySt - yEn, 2)) <= circleRadius
+        };
+
         // Flood fill algorithm with tolerance
         // https://github.com/tuzz/n-dimensional-flood-fill
         let result = floodFill({
             getter: function (x, y) {
-                if ((labelmap[y][x] !== 1) && (Math.sqrt(Math.pow(xStart - x, 2) + Math.pow(yStart - y, 2)) <= circleRadius)) {
+                if ((labelmap[y][x] !== 1) && pointInCircle(xStart, x, yStart, y)) {
                     return imagePixelData2D[y][x];
                 }
             },
@@ -283,6 +287,7 @@ export default class CountourFillTool extends BaseBrushTool {
 function get2DArray(imagePixelData, height, width) {
 
     let Array2d = [];
+
     for (let i = 0; i < height; i++) {
         Array2d.push(
             Array.from(imagePixelData.slice(i * width, (i + 1) * width))
@@ -304,7 +309,9 @@ function countTolerance(deltaX, deltaY, a, b) {
 }
 
 function findMaxInArray(data) {
+
     let max_val = data[0];
+
     for (let i = 0; i < data.length; i++) {
         if (data[i] > max_val) {
             max_val = data[i];
@@ -318,12 +325,18 @@ function count_a(imagePixelData2D, radius_x, radius_y, xStart, yStart) {
     let max = imagePixelData2D[0][0];
     let min = imagePixelData2D[0][0];
 
+    const pointInEllipse = (xSt, xEn, ySt, yEn, rX, rY) => {
+        return (Math.pow(xEn - xSt, 2) / rX ** 2) + (Math.pow(yEn - ySt, 2) / rY ** 2) <= 1
+    };
+
     for (let i = 0; i < imagePixelData2D.length; i++) {
         for (let j = 0; j < imagePixelData2D[i].length; j++) {
-            if ((Math.pow(j - xStart, 2) / radius_x ** 2) + (Math.pow(i - yStart, 2) / radius_y ** 2) <= 1) {
+
+            if (pointInEllipse(xStart, j, yStart, i, radius_x, radius_y)) {
                 max = Math.max(max, imagePixelData2D[i][j]);
                 min = Math.min(min, imagePixelData2D[i][j]);
             }
+
         }
     }
 
@@ -334,11 +347,3 @@ function count_b(a, max) {
     return (Math.tanh(0.008 * (a / max)) < 0.001) ? 0.001 : Math.tanh(0.008 * (a / max));
 }
 
-//TODO блокировать снимки
-//TODO документирование функций и класса
-
-//TODO flood fill результат
-
-//отрицательные значения - временно решено
-//при маленькой разнице, слишком маленький коэфициент b -> медленный рост - есть временное решение
-//временное решение для толерантности сделано, все равно есть скачки
