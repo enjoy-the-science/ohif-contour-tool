@@ -62,6 +62,9 @@ export default class CountourFillTool extends BaseBrushTool {
         this.init(evt);
         const {element, currentPoints} = eventData;
 
+        // Lock switching images when rendering data
+        csTools.setToolDisabled('StackScrollMouseWheel', {});
+
         // Start point
         this.startCoords = currentPoints.image;
 
@@ -124,6 +127,9 @@ export default class CountourFillTool extends BaseBrushTool {
         this.finishCoords = currentPoints.image;
 
         this._drawing = false;
+
+        csTools.setToolActive('StackScrollMouseWheel', {});
+
         super._stopListeningForMouseUp(element);
     }
 
