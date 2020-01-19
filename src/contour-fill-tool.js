@@ -9,10 +9,10 @@ const {drawBrushPixels} = csTools.importInternal(
 );
 const segmentationModule = csTools.getModule('segmentation');
 
-export default class CountourFillTool extends BaseBrushTool {
+export default class ContourFillTool extends BaseBrushTool {
   constructor(props = {}) {
     const defaultProps = {
-      name: 'CountourFill',
+      name: 'ContourFill',
       supportedInteractionTypes: ['Mouse', 'Touch'],
       configuration: {},
     };
