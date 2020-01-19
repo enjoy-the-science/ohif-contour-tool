@@ -13,8 +13,13 @@ export default class ContourBrushTool extends BaseBrushTool {
       configuration: {},
     });
     this.touchDragCallback = this._paint.bind(this);
-    window.addEventListener('keydown', this.handleKeys.bind(this));
+    window.addEventListener('mousewheel', this.handleWheel.bind(this), false);
     this.shouldErase = false;
+    this.hasContour = false;
+    this.preMouseDownCallback = this._checkContourPresence.bind(this);
+    this.radiusOffset = 0;
+    this.renderBrush = this.renderBrush.bind(this);
+    csTools.setToolDisabled('StackScrollMouseWheel', {});
   }
 
   _paint(evt) {
@@ -36,26 +41,31 @@ export default class ContourBrushTool extends BaseBrushTool {
     } = this.paintEventData;
 
     drawBrushPixels(
-      pointerArray,
-      labelmap2D.pixelData,
-      labelmap3D.activeSegmentIndex,
-      columns,
-      this.shouldErase
+        pointerArray,
+        labelmap2D.pixelData,
+        labelmap3D.activeSegmentIndex,
+        columns,
+        this.shouldErase && this.hasContour
     );
     window.cornerstone.updateImage(evt.detail.element);
   }
 
-  handleKeys(event) {
-    let { configuration, setters } = segmentationModule;
-    if (event.ctrlKey) {
-      configuration.radius += configuration.radius > 50 ? 0 : 1;
+  handleWheel(event) {
+    csTools.setToolDisabled('StackScrollMouseWheel', {});
+    if (!event.shiftKey) {
+      csTools.setToolActive('StackScrollMouseWheel', {});
+    } else {
+      let { configuration, setters } = segmentationModule;
+      this.radiusOffset += event.deltaY / 10;
+      configuration.radius += Math.abs(this.radiusOffset) > 1
+          ? this.radiusOffset > 0
+              ? Math.floor(this.radiusOffset-- % 2)
+              : Math.ceil(this.radiusOffset++ % 2)
+          : 0;
+      configuration.radius = configuration.radius < 4 ? 4 : configuration.radius;
       setters.radius(configuration.radius);
     }
-    if (event.altKey) {
-      configuration.radius -= configuration.radius < 4 ? 0 : 1;
-      setters.radius(configuration.radius);
-    }
-  };
+  }
 
   renderBrush(evt) {
     const { getters, configuration } = segmentationModule;
@@ -93,8 +103,8 @@ export default class ContourBrushTool extends BaseBrushTool {
 
     let circleRadius = radius * viewport.scale;
     const mouseCoordsCanvas = window.cornerstone.pixelToCanvas(
-      element,
-      mousePosition,
+        element,
+        mousePosition,
     );
 
     const { labelmap2D } = getters.labelmap2D(element);
@@ -106,16 +116,31 @@ export default class ContourBrushTool extends BaseBrushTool {
     context.beginPath();
     context.strokeStyle = color;
     context.ellipse(
-      mouseCoordsCanvas.x,
-      mouseCoordsCanvas.y,
-      circleRadius,
-      circleRadius,
-      0,
-      0,
-      2 * Math.PI,
+        mouseCoordsCanvas.x,
+        mouseCoordsCanvas.y,
+        circleRadius,
+        circleRadius,
+        0,
+        0,
+        2 * Math.PI,
     );
     context.stroke();
 
     this._lastImageCoords = eventData.image;
+  }
+
+  _checkContourPresence(evt) {
+    super.preMouseDownCallback(evt);
+    const element = evt.detail.element;
+    const { getters } = segmentationModule;
+    const { labelmap2D } = getters.labelmap2D(element);
+    for (let i = 0; i < labelmap2D.pixelData.length; i++) {
+      if (labelmap2D.pixelData[i] === 1) {
+        this.hasContour = true;
+        break;
+      } else {
+        this.hasContour = false;
+      }
+    }
   }
 }
