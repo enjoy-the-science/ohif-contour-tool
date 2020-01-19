@@ -1,248 +1,354 @@
 import csTools from "cornerstone-tools";
-
-import * as d3 from "d3";
+import cornerstone from "cornerstone-core";
 
 const BaseBrushTool = csTools.importInternal("base/BaseBrushTool");
-const external = csTools.importInternal("externalModules");
-const segmentationModule = csTools.getModule("segmentation");
+import floodFill from "n-dimensional-flood-fill";
 
-export default class ContourFillTool extends BaseBrushTool {
+const {drawBrushPixels} = csTools.importInternal(
+    'util/segmentationUtils'
+);
+const segmentationModule = csTools.getModule('segmentation');
+
+export default class CountourFillTool extends BaseBrushTool {
   constructor(props = {}) {
     const defaultProps = {
-      name: "ContourFill",
-      supportedInteractionTypes: ["Mouse", "Touch"],
+      name: 'CountourFill',
+      supportedInteractionTypes: ['Mouse', 'Touch'],
       configuration: {},
-      // hideDefaultCursor: false,
-      mixins: ["renderBrushMixin"]
     };
 
     super(props, defaultProps);
 
     this.preMouseDownCallback = this.preMouseDownCallback.bind(this);
     this._drawingMouseUpCallback = this._drawingMouseUpCallback.bind(this);
-    this.proceedCalculations = this.proceedCalculations.bind(this);
-    this.draw = this.draw.bind(this);
     this.init = this.init.bind(this);
+    this.renderBrush = this.renderBrush.bind(this);
+    this.mouseDragCallback = this.mouseDragCallback.bind(this);
+    this._paint = this._paint.bind(this);
   }
 
   init(evt) {
+
     const eventData = evt.detail;
     const element = eventData.element;
 
     this.rows = eventData.image.rows;
     this.columns = eventData.image.columns;
 
-    const { configuration, getters } = segmentationModule;
+    const {getters} = segmentationModule;
 
     const {
       labelmap2D,
       labelmap3D,
       currentImageIdIndex,
-      activeLabelmapIndex
+      activeLabelmapIndex,
     } = getters.labelmap2D(element);
 
     const shouldErase =
-      super._isCtrlDown(eventData) || this.configuration.alwaysEraseOnClick;
+        super._isCtrlDown(eventData) || this.configuration.alwaysEraseOnClick;
 
     this.paintEventData = {
       labelmap2D,
       labelmap3D,
       currentImageIdIndex,
       activeLabelmapIndex,
-      shouldErase
+      shouldErase,
     };
   }
 
   preMouseDownCallback(evt) {
+
     const eventData = evt.detail;
-
     this.init(evt);
+    const {element, currentPoints} = eventData;
 
-    const { element, currentPoints } = eventData;
+    // Lock switching images when rendering data
+    csTools.setToolDisabled('StackScrollMouseWheel', {});
 
+    // Start point
     this.startCoords = currentPoints.image;
+
+    // Segmentation label matrix
+    // used to define boundaries
+    this.labelmap = get2DArray(this.paintEventData.labelmap2D.pixelData, this.rows, this.columns);
+
+    const generalSeriesModuleMeta = cornerstone.metaData.get(
+        'generalSeriesModule',
+        eventData.image.imageId
+    );
+
+    const pixelArray = eventData.image.getPixelData();
+    let grayScale;
+
+    // This conversion avoids errors in finding the maximum difference between pixels
+    // (consider other cases or work with negative values correctly)
+    switch (generalSeriesModuleMeta.modality) {
+      case 'CT':
+        grayScale = pixelArray.map(value =>
+            Math.round(((value + 2048) / 4096) * 256)
+        );
+        break;
+
+      default:
+        grayScale = pixelArray;
+    }
+
+    // Image matrix
+    this.imagePixelData2D = get2DArray(grayScale, this.rows, this.columns);
+
+    // Maximum pixel value in the image
+    // used to calculate coefficient for tolerance function
+    this.maxPix = findMaxInArray(eventData.image.getPixelData());
 
     this._drawing = true;
     super._startListeningForMouseUp(element);
+    this._lastImageCoords = currentPoints.image;
+
     return true;
   }
 
+  mouseDragCallback(evt) {
+
+    const {currentPoints} = evt.detail;
+
+    // Current point
+    this.finishCoords = currentPoints.image;
+    this._lastImageCoords = currentPoints.image;
+
+    this._paint(evt);
+    cornerstone.updateImage(evt.detail.element);
+  }
+
   _drawingMouseUpCallback(evt) {
+
     const eventData = evt.detail;
-    const { element, currentPoints } = eventData;
+    const {element, currentPoints} = eventData;
 
     this.finishCoords = currentPoints.image;
 
     this._drawing = false;
+
+    csTools.setToolActive('StackScrollMouseWheel', {});
+
     super._stopListeningForMouseUp(element);
-    this.proceedCalculations(evt);
   }
 
-  proceedCalculations(evt) {
-    //logic of getting coordinates to brush
-    //get Image
-    const image = evt.detail.image;
-    const imagePixelData = image.getPixelData();
-    const imageWidth = image.width;
-    const imageHeight = image.height;
+  _paint(evt) {
 
-    //cut fragment for count threshold
-    let xS = this.startCoords.x.valueOf();
-    let yS = this.startCoords.y.valueOf();
-    let xE = this.finishCoords.x.valueOf();
-    let yE = this.finishCoords.y.valueOf();
-    const highlFragment = cutHilghFragm(xS, yS, xE, yE, imagePixelData);
+    const rows = this.rows;
+    const columns = this.columns;
 
-    //count threshold
-    const mean_threshold = mean_thresh(highlFragment);
-    console.log(mean_threshold);
-    const o_thresh = otsu_threshold(highlFragment);
-    console.log(o_thresh);
+    let xStart = this.startCoords.x.valueOf();
+    let yStart = this.startCoords.y.valueOf();
 
-    //search contours
-    const arrayPolig = searchCont(
-      imagePixelData,
-      o_thresh,
-      imageWidth,
-      imageHeight
+    let xEnd = this.finishCoords.x.valueOf();
+    let yEnd = this.finishCoords.y.valueOf();
+
+    if (xEnd < 0 || xEnd > columns || yEnd < 0 || yEnd > rows) {
+      return;
+    }
+
+    const imagePixelData2D = this.imagePixelData2D;
+    const labelmap = this.labelmap;
+
+    // Calculation of distance changes by x or by y
+    // Used as parameters for tolerance function and to calculate radius of the selected area
+    const countDelta = (pointSt, pointFin) => {
+      return Math.abs(pointSt - pointFin)
+    };
+
+    // Radius of bounding area
+    // border - circle
+    const circleRadius = rows * 0.25;
+
+    // Radius of selected area
+    // area - ellipse
+    const radius_x = countDelta(xStart, xEnd);
+    const radius_y = countDelta(yStart, yEnd);
+
+    // Calculation of coefficients a, b for tolerance function
+    // where a - maximum difference between two pixel values on the selected area,
+    // b - tanh(a/maxPix)
+    const a = count_a(imagePixelData2D, radius_x, radius_y, xStart, yStart);
+    const b = count_b(a, this.maxPix);
+
+    // Calculation of tolerance
+    // tolerance = a*tanh(b*x), where x - delta of distance
+    const tolerance = countTolerance(countDelta(xStart, xEnd), countDelta(yStart, yEnd), a, b);
+    console.log(`tolerance ${tolerance}`);
+
+    const pointInCircle = (xSt, xEn, ySt, yEn) => {
+      return Math.sqrt(Math.pow(xSt - xEn, 2) + Math.pow(ySt - yEn, 2)) <= circleRadius
+    };
+
+    // Flood fill algorithm with tolerance
+    // https://github.com/tuzz/n-dimensional-flood-fill
+    let result = floodFill({
+      getter: function (x, y) {
+        if ((labelmap[y][x] !== 1) && pointInCircle(xStart, x, yStart, y)) {
+          return imagePixelData2D[y][x];
+        }
+      },
+      seed: [Math.round(xStart), Math.round(yStart)],
+      equals: function (a, b) {
+        return Math.abs(a - b) <= tolerance;
+      },
+      diagonals: true
+    });
+
+    let pointerArray = result.flooded;
+
+    // Drawing
+    const {labelmap2D, labelmap3D} = this.paintEventData;
+
+    drawBrushPixels(
+        pointerArray,
+        labelmap2D.pixelData,
+        labelmap3D.activeSegmentIndex,
+        columns,
+        false
     );
 
-    this.draw(evt, arrayPolig);
+    cornerstone.updateImage(evt.detail.element);
   }
 
-  draw(evt, points) {
-    const { labelmap2D, labelmap3D, shouldErase } = this.paintEventData;
-    const columns = this.columns;
-    // console.log(points.length);
-    for (let i = 0; i < points.length; ++i) {
-      for (let k = 0; k < points[i].length; ++k) {
-        for (let j = 0; j < points[i][k].length; ++j) {
-          let curPoint = roundPoint(points[i][0][j]);
-          //console.log(curPoint);
-          drawBrushPixels(
-            [curPoint],
-            labelmap2D.pixelData,
-            labelmap3D.activeSegmentIndex,
-            columns,
-            shouldErase
-          ); //*/
-        }
-      }
-    }
+  // Cursor
+  renderBrush(evt) {
 
-    external.cornerstone.updateImage(evt.detail.element); //*/
-  }
+    const {getters} = segmentationModule;
+    const eventData = evt.detail;
+    const viewport = eventData.viewport;
+    const context = eventData.canvasContext;
+    const element = eventData.element;
+    let mousePosition;
+    let width, height;
 
-  // _paint() {
-  //   return null;
-  // }
+    if (this._drawing) {
 
-  // renderBrush() {
-  //   return null;
-  // }
-}
+      let mouseEndPosition = this._lastImageCoords; //end ellipse point
+      mousePosition = this.startCoords; //start ellipse point
 
-function eraseIfSegmentIndex(pixelIndex, pixelData, segmentIndex) {
-  if (pixelData[pixelIndex] === segmentIndex) {
-    pixelData[pixelIndex] = 0;
-  }
-}
+      context.strokeStyle = "rgba(255,255,255,0.1)";
+      context.fillStyle = "rgba(255,255,255,0.1)";
 
-function drawBrushPixels(
-  pointerArray,
-  pixelData,
-  segmentIndex,
-  columns,
-  shouldErase = false
-) {
-  const getPixelIndex = (x, y) => y * columns + x;
+      width = Math.abs(mousePosition.x - mouseEndPosition.x) * viewport.scale;
+      height = Math.abs(mousePosition.y - mouseEndPosition.y) * viewport.scale;
 
-  pointerArray.forEach(point => {
-    const spIndex = getPixelIndex(...point);
-
-    if (shouldErase) {
-      eraseIfSegmentIndex(spIndex, pixelData, segmentIndex);
     } else {
-      pixelData[spIndex] = segmentIndex;
+
+      mousePosition = csTools.store.state.mousePositionImage;
+      const radius = 3 * (1 / viewport.scale);
+      width = radius * viewport.scale;
+      height = width;
+      context.strokeStyle = "rgb(0,255,0)";
+      context.fillStyle = "rgb(0,255,0)";
+
     }
-  });
-}
 
-//
-function getMaxOfArray(numArray) {
-  return Math.max.apply(null, numArray);
-}
+    if (!mousePosition) {
+      return;
+    }
 
-function mean_thresh(highlData) {
-  let threshold = 0;
-  let sum = 0;
-  for (let i = 0; i < highlData.length; i++) {
-    sum = sum + highlData[i];
+    const {rows, columns} = eventData.image;
+    const {x, y} = mousePosition;
+
+    if (x < 0 || x > columns || y < 0 || y > rows) {
+      return;
+    }
+
+    context.setTransform(1, 0, 0, 1, 0, 0);
+
+    const {labelmap2D} = getters.labelmap2D(element);
+
+    const getPixelIndex = (x, y) => y * columns + x;
+    const spIndex = getPixelIndex(Math.floor(x), Math.floor(y));
+    const isInside = labelmap2D.pixelData[spIndex] === 1;
+    this.shouldErase = !isInside;
+
+    context.beginPath();
+
+    const startCoordsCanvas = window.cornerstone.pixelToCanvas(
+        element,
+        mousePosition,
+    );
+
+    context.ellipse(
+        startCoordsCanvas.x,
+        startCoordsCanvas.y,
+        width,
+        height,
+        0,
+        0,
+        2 * Math.PI,
+    );
+
+    context.stroke();
+    context.fill();
+
+    this._lastImageCoords = eventData.image;
   }
-  threshold = sum / highlData.length;
-  return threshold; //check ?
+
 }
 
-function cutHilghFragm(xS, yS, xE, yE, imagePixelData) {
-  let xStart = Math.round(xS);
-  let yStart = Math.round(yS);
-  let xEnd = Math.round(xE);
-  let yEnd = Math.round(yE);
-  let widthHighl = Math.abs(xStart - xEnd);
-  let heightHighl = Math.abs(yStart - yEnd);
-  let distance = widthHighl * heightHighl;
-  let xCut = Math.min(xStart, xEnd);
-  let yCut = Math.min(yStart, yEnd);
-  let beginCut = xCut * yCut;
-  let endCut = beginCut + distance;
-  return imagePixelData.slice(beginCut, endCut);
+function get2DArray(imagePixelData, height, width) {
+
+  let Array2d = [];
+
+  for (let i = 0; i < height; i++) {
+    Array2d.push(
+        Array.from(imagePixelData.slice(i * width, (i + 1) * width))
+    );
+  }
+  return Array2d;
 }
 
-function otsu_threshold(highlData) {
-  let n = getMaxOfArray(highlData);
-  let histogram = Array(n);
+function countTolerance(deltaX, deltaY, a, b) {
 
-  for (let i = 0; i < n; ++i) {
-    histogram[i] = 0;
+  if (deltaY === 0) {
+    return a * Math.tanh(b * deltaX);
+  } else if (deltaX === 0) {
+    return a * Math.tanh(b * deltaY);
+  } else {
+    return a * Math.tanh(b * (deltaY + deltaX));
   }
 
-  for (let i = 0; i < highlData.length; i++) {
-    histogram[highlData[i]] += 1;
-  }
+}
 
-  var sum = 0,
-    sumB = 0,
-    wB = 0,
-    wF = 0,
-    mB,
-    mF,
-    max = 0,
-    between,
-    threshold = 0;
+function findMaxInArray(data) {
 
-  for (let i = 0; i < 256; ++i) {
-    wB += histogram[i];
-    if (wB == 0) continue;
-    wF = highlData.length - wB;
-    if (wF == 0) break;
-    sumB += i * histogram[i];
-    mB = sumB / wB;
-    mF = (sum - sumB) / wF;
-    between = wB * wF * Math.pow(mB - mF, 2);
-    if (between > max) {
-      max = between;
-      threshold = i;
+  let max_val = data[0];
+
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] > max_val) {
+      max_val = data[i];
     }
   }
-  return threshold;
+  return max_val;
 }
 
-function searchCont(preparedData, mean_thresh, fragmWidth, fragmHeight) {
-  let contoursArray = d3.contours().size([fragmWidth, fragmHeight]);
-  let contours = contoursArray.contour(preparedData, mean_thresh);
-  return contours.coordinates;
+function count_a(imagePixelData2D, radius_x, radius_y, xStart, yStart) {
+
+  let max = imagePixelData2D[0][0];
+  let min = imagePixelData2D[0][0];
+
+  const pointInEllipse = (xSt, xEn, ySt, yEn, rX, rY) => {
+    return (Math.pow(xEn - xSt, 2) / rX ** 2) + (Math.pow(yEn - ySt, 2) / rY ** 2) <= 1
+  };
+
+  for (let i = 0; i < imagePixelData2D.length; i++) {
+    for (let j = 0; j < imagePixelData2D[i].length; j++) {
+
+      if (pointInEllipse(xStart, j, yStart, i, radius_x, radius_y)) {
+        max = Math.max(max, imagePixelData2D[i][j]);
+        min = Math.min(min, imagePixelData2D[i][j]);
+      }
+
+    }
+  }
+
+  return max - min;
 }
 
-function roundPoint(coordinates) {
-  return [Math.round(coordinates[0]), Math.round(coordinates[1])];
+function count_b(a, max) {
+  return (Math.tanh(0.008 * (a / max)) < 0.001) ? 0.001 : Math.tanh(0.008 * (a / max));
 }
