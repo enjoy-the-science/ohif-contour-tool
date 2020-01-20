@@ -9,17 +9,40 @@ export default class HelloWorldMouseTool extends BaseBrushTool {
   constructor(name = 'HelloWorldMouse') {
     super({
       name,
-      supportedInteractionTypes: ['Mouse', 'Touch'],
+      supportedInteractionTypes: ['Mouse', 'Touch', 'MouseWheel'],
       configuration: {},
     });
     this.touchDragCallback = this._paint.bind(this);
-    window.addEventListener('mousewheel', this.handleWheel.bind(this), false);
     this.shouldErase = false;
     this.hasContour = false;
+    this.mouseWheelCallback = this._handleWheel.bind(this);
     this.preMouseDownCallback = this._checkContourPresence.bind(this);
     this.radiusOffset = 0;
     this.renderBrush = this.renderBrush.bind(this);
     csTools.setToolDisabled('StackScrollMouseWheel', {});
+  }
+
+  _handleWheel(evt) {
+    if (evt.detail.detail.deltaY > 0) {
+      const { configuration, setters } = segmentationModule;
+      const oldRadius = configuration.radius;
+      let newRadius = Math.floor(oldRadius * 1.1);
+
+      // have minimum increment of 1 pixel.
+      if (newRadius === oldRadius) {
+        newRadius += 1;
+      }
+
+      setters.radius(newRadius);
+    } else {
+      const { configuration, setters } = segmentationModule;
+      const oldRadius = configuration.radius;
+      const newRadius = Math.floor(oldRadius * 0.9);
+
+      setters.radius(newRadius);
+    }
+
+    window.cornerstone.updateImage(evt.detail.element);
   }
 
   _paint(evt) {
@@ -48,23 +71,6 @@ export default class HelloWorldMouseTool extends BaseBrushTool {
         this.shouldErase && this.hasContour
     );
     window.cornerstone.updateImage(evt.detail.element);
-  }
-
-  handleWheel(event) {
-    csTools.setToolDisabled('StackScrollMouseWheel', {});
-    if (!event.shiftKey) {
-      csTools.setToolActive('StackScrollMouseWheel', {});
-    } else {
-      let { configuration, setters } = segmentationModule;
-      this.radiusOffset += event.deltaY / 10;
-      configuration.radius += Math.abs(this.radiusOffset) > 1
-          ? this.radiusOffset > 0
-              ? Math.floor(this.radiusOffset-- % 2)
-              : Math.ceil(this.radiusOffset++ % 2)
-          : 0;
-      configuration.radius = configuration.radius < 4 ? 4 : configuration.radius;
-      setters.radius(configuration.radius);
-    }
   }
 
   renderBrush(evt) {
