@@ -31,12 +31,18 @@ export const ACM = function(){
       //binding the scope for animationFrameRequests
       this.update = this.update.bind(this);
       this.render = params.render;
+
+      this.stopped = false;
+
+      document.addEventListener('keypress',(event)=>{
+          if (event.key === 'q') this.stopped = true
+      })
   }
 
   // compute -> update -> loop, _render ->
   function compute( _onComplete ) {
       this.onComplete = _onComplete;
-      console.log(this.params.dots)
+    //   console.log(this.params.dots)
       if (this.w / this.h  > this.displayedArea.x / this.displayedArea.y) {
         // borders are left and right
         const borderWidth = (this.w - this.displayedArea.x * this.scale) / 2
@@ -64,7 +70,15 @@ export const ACM = function(){
   }
 
   function update() {
+      if (this.stopped) {
+          this.stopped = false
 
+          console.log("points:", this.snake.length, 'iteration:', this.it);
+          cancelAnimationFrame(this.interval);
+          this._render(true);
+
+          return
+      }
       this.loop();
       this._render();
       this.length = this.getsnakelength();
@@ -76,8 +90,10 @@ export const ACM = function(){
           //     this.onComplete( this.snake );
           // }
       } else {
-          this.interval = requestAnimationFrame(this.update);
+            //   this.interval = requestAnimationFrame(this.update);
           this.last = this.length;
+          setTimeout(this.update, 0)
+          
       }
   }
 
